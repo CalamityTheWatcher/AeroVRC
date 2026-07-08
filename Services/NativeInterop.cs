@@ -1,3 +1,4 @@
+using System.Media;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -59,6 +60,78 @@ public static class MemTrim
     {
         // (-1, -1) => trim to the minimum; pages fault back in as they're touched.
         try { SetProcessWorkingSetSize(GetCurrentProcess(), (IntPtr)(-1), (IntPtr)(-1)); } catch { }
+    }
+}
+
+// Startup sound: plays a user-supplied file if present (startup.wav / startup.mp3
+// in the config dir), otherwise a synthesized built-in chime. All async / non-blocking.
+public static class AeroSound
+{
+    static SoundPlayer startupPlayer;   // keep a reference alive during async playback
+    [DllImport("winmm.dll", CharSet = CharSet.Auto)]
+    static extern int mciSendString(string cmd, StringBuilder ret, int retLen, IntPtr hwnd);
+
+    public static void PlayStartup(string dir)
+    {
+        try
+        {
+            var wav = Path.Combine(dir, "startup.wav");
+            var mp3 = Path.Combine(dir, "startup.mp3");
+            if (File.Exists(wav))
+            {
+                startupPlayer = new SoundPlayer(wav);
+                startupPlayer.Play();
+            }
+            else if (File.Exists(mp3))
+            {
+                mciSendString("close aerostart", null, 0, IntPtr.Zero);
+                mciSendString($"open \"{mp3}\" type mpegvideo alias aerostart", null, 0, IntPtr.Zero);
+                mciSendString("play aerostart", null, 0, IntPtr.Zero);
+            }
+            else
+            {
+                startupPlayer = new SoundPlayer(new MemoryStream(BuildChimeWav()));
+                startupPlayer.Play();
+            }
+        }
+        catch { }
+    }
+
+    // A short, bright three-note arpeggio rendered to 16-bit mono PCM WAV in memory.
+    static byte[] BuildChimeWav()
+    {
+        const int sr = 44100;
+        const double dur = 0.65;
+        int n = (int)(sr * dur);
+        var samp = new short[n];
+        double[] freqs = { 587.33, 880.0, 1174.66 };   // D5, A5, D6
+        double[] starts = { 0.0, 0.09, 0.18 };
+        for (int i = 0; i < n; i++)
+        {
+            double t = i / (double)sr, s = 0;
+            for (int k = 0; k < freqs.Length; k++)
+            {
+                double lt = t - starts[k];
+                if (lt < 0) continue;
+                s += Math.Sin(2 * Math.PI * freqs[k] * lt) * Math.Exp(-lt * 4.5) * 0.30;
+            }
+            if (s > 1) s = 1; else if (s < -1) s = -1;
+            samp[i] = (short)(s * 32767);
+        }
+        using var ms = new MemoryStream();
+        using var bw = new BinaryWriter(ms);
+        int dataLen = n * 2;
+        bw.Write(Encoding.ASCII.GetBytes("RIFF"));
+        bw.Write(36 + dataLen);
+        bw.Write(Encoding.ASCII.GetBytes("WAVE"));
+        bw.Write(Encoding.ASCII.GetBytes("fmt "));
+        bw.Write(16); bw.Write((short)1); bw.Write((short)1);
+        bw.Write(sr); bw.Write(sr * 2); bw.Write((short)2); bw.Write((short)16);
+        bw.Write(Encoding.ASCII.GetBytes("data"));
+        bw.Write(dataLen);
+        foreach (var v in samp) bw.Write(v);
+        bw.Flush();
+        return ms.ToArray();
     }
 }
 

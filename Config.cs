@@ -90,6 +90,7 @@ public class AppConfig
     public List<CustomApp> CustomApps = new();         // Name; Type ('steam'|'exe'); Value; Icon
     public List<Preset> Presets = new();               // Name; AutoLaunch; Apps
     public bool SoundAlert = true;
+    public bool StartupSound = true;
     public bool AutoCloseCompanions;
     public bool AutoRejoin;
     public bool SteamVRAutoLaunch;
@@ -327,6 +328,7 @@ public static class ConfigStore
             cfg.VrcxPath = SNe(j, "VrcxPath", cfg.VrcxPath);
             cfg.AmethystPath = SNe(j, "AmethystPath", cfg.AmethystPath);
             cfg.SoundAlert = B(j, "SoundAlert", cfg.SoundAlert);
+            cfg.StartupSound = B(j, "StartupSound", cfg.StartupSound);
             cfg.AutoCloseCompanions = B(j, "AutoCloseCompanions", cfg.AutoCloseCompanions);
             cfg.AutoRejoin = B(j, "AutoRejoin", cfg.AutoRejoin);
             cfg.SteamVRAutoLaunch = B(j, "SteamVRAutoLaunch", cfg.SteamVRAutoLaunch);

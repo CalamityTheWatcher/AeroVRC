@@ -143,6 +143,7 @@ public partial class MainForm : Form
         else
         {
             Opacity = 0;   // fade the window in on launch (ramped by the fx timer)
+            if (config.StartupSound) { try { AeroSound.PlayStartup(ConfigStore.ConfigDir); } catch { } }
             // Animated welcome popup on startup (dismiss with button, Enter, or Esc).
             if (config.ShowWelcome) { try { Shown += (s, e) => ShowWelcomeScreen(); } catch { } }
         }
