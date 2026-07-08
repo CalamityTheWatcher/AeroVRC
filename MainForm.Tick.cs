@@ -118,7 +118,7 @@ public partial class MainForm
             // Restore any companions we down-prioritised back to Normal.
             if (config.Optimization.CompanionPriority.Enabled) ResetCompanionPriorities();
             if (config.AutoCloseCompanions) CloseCompanions();
-            vrcCpuPct = null; vrcRamMB = null; lastCpuTime = null;
+            vrcCpuPct = null; vrcRamMB = null; lastCpuTime = null; prioWarned = false;
             FlushFrameLog();
             WriteLog("VRChat closed.");
             // A rejoin was requested while VRChat was still running (bookmark /

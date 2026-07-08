@@ -26,6 +26,7 @@ public partial class MainForm
     internal List<int> perfPendingKill = new();      // pids that got CloseMainWindow; killed at the deadline
     internal DateTime? perfKillAt;
     internal bool affApplied;                        // an affinity mask is currently applied to VRChat
+    internal bool prioWarned;                         // logged a priority-set failure this session (avoid spam)
 
     // Applies VRChat + companion process priorities per the Optimization config.
     // Called from the timer while VRChat is running; sets a priority only when it
@@ -50,7 +51,22 @@ public partial class MainForm
             else if (opt.ProcPriority.Enabled) want = ToPriorityClass(opt.ProcPriority.Level);
             if (want.HasValue)
             {
-                try { if (proc.PriorityClass != want.Value) proc.PriorityClass = want.Value; } catch { }
+                try
+                {
+                    if (proc.PriorityClass != want.Value)
+                    {
+                        proc.PriorityClass = want.Value;
+                        WriteLog($"VRChat CPU priority set to {want.Value}.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (!prioWarned)
+                    {
+                        prioWarned = true;
+                        WriteLog($"Couldn't set VRChat priority to {want.Value}: {ex.Message}. If VRChat runs as administrator, run AeroVRC as administrator too.");
+                    }
+                }
             }
             // CPU affinity: pin VRChat to the first N logical cores (0 = all).
             int cores = 0;
@@ -93,6 +109,20 @@ public partial class MainForm
                 catch { }
             }
         }
+    }
+
+    // Re-apply priorities/affinity right now (used when a setting changes so the
+    // effect is instant instead of waiting for the next 5s tick).
+    internal void ApplyPrioritiesNow()
+    {
+        prioWarned = false;
+        try
+        {
+            var p = Process.GetProcessesByName(ProcessName).FirstOrDefault();
+            if (p != null) ApplyProcessPriorities(p);
+            else WriteLog("Priority setting saved - it applies while VRChat is running.");
+        }
+        catch { }
     }
 
     // Restores companion processes to Normal priority (used when VRChat exits).

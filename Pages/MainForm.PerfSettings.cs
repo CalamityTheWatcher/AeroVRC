@@ -113,12 +113,12 @@ public partial class MainForm
         // ---- Process Priority section ----
         var secPrio = NewSettingsSection("Process Priority", "Performance");
         optProcCb = NewSettingCheckbox("Boost VRChat's CPU priority while it's running", config.Optimization.ProcPriority.Enabled,
-            (s, e) => { if (loading) return; config.Optimization.ProcPriority.Enabled = optProcCb.Checked; SaveConfig(); });
+            (s, e) => { if (loading) return; config.Optimization.ProcPriority.Enabled = optProcCb.Checked; SaveConfig(); ApplyPrioritiesNow(); });
         secPrio.Controls.Add(optProcCb);
         secPrio.Controls.Add(NewSettingCombo("     VRChat priority:", new[] { "AboveNormal", "High" }, config.Optimization.ProcPriority.Level,
-            (s, e) => { if (loading) return; config.Optimization.ProcPriority.Level = (string)((ComboBox)s).SelectedItem; SaveConfig(); }, out optProcLvl));
+            (s, e) => { if (loading) return; config.Optimization.ProcPriority.Level = (string)((ComboBox)s).SelectedItem; SaveConfig(); ApplyPrioritiesNow(); }, out optProcLvl));
         optCompCb = NewSettingCheckbox("Lower companion apps' CPU priority while VRChat runs", config.Optimization.CompanionPriority.Enabled,
-            (s, e) => { if (loading) return; config.Optimization.CompanionPriority.Enabled = optCompCb.Checked; SaveConfig(); });
+            (s, e) => { if (loading) return; config.Optimization.CompanionPriority.Enabled = optCompCb.Checked; SaveConfig(); ApplyPrioritiesNow(); });
         secPrio.Controls.Add(optCompCb);
         secPrio.Controls.Add(NewSettingCombo("     Companion priority:", new[] { "BelowNormal", "Idle" }, config.Optimization.CompanionPriority.Level,
             (s, e) => { if (loading) return; config.Optimization.CompanionPriority.Level = (string)((ComboBox)s).SelectedItem; SaveConfig(); }, out optCompLvl));
