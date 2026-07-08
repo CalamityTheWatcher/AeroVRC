@@ -1,0 +1,13 @@
+# Normalize line endings: text files use CRLF in-repo checkout on Windows,
+# stored as LF. Binaries are left untouched.
+* text=auto
+
+*.cs      text diff=csharp
+*.csproj  text
+*.md      text
+*.gitignore text
+*.gitattributes text
+
+*.png binary
+*.ico binary
+*.jpg binary

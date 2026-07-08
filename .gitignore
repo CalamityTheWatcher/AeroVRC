@@ -1,0 +1,21 @@
+# ---- .NET build output ----
+bin/
+obj/
+publish/
+
+# ---- Visual Studio / VS Code / Rider ----
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+
+# ---- OS cruft ----
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ---- Local runtime data (never committed; lives in %APPDATA%\AeroVRC) ----
+config.json
+*.log
