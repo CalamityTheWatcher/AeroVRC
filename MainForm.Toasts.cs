@@ -460,21 +460,34 @@ public partial class MainForm
             }
         }
 
-        // nav slider glide
+        // nav slider glide - damped spring (slight overshoot) + stretch while moving
         if (navSlider.Visible)
         {
-            int d = navSliderTarget - navSlider.Top;
-            if (d != 0)
-            {
-                if (Math.Abs(d) <= 2) navSlider.Top = navSliderTarget;
-                else
-                {
-                    int step = (int)(d * 0.35);
-                    if (step == 0) step = Math.Sign(d);
-                    navSlider.Top += step;
-                }
-            }
+            double diff = navSliderTarget - navSliderPos;
+            navSliderVel = (navSliderVel + diff * 0.30) * 0.70;
+            navSliderPos += (float)navSliderVel;
+            if (Math.Abs(diff) < 0.4 && Math.Abs(navSliderVel) < 0.4) { navSliderPos = navSliderTarget; navSliderVel = 0; }
+            int stretch = (int)Math.Min(18, Math.Abs(navSliderVel) * 1.7);
+            int h = 26 + stretch, top = (int)Math.Round(navSliderPos - stretch / 2.0);
+            if (navSlider.Height != h) navSlider.Height = h;
+            if (navSlider.Top != top) navSlider.Top = top;
         }
+
+        // page crossfade: dissolve the captured old page away to reveal the new one
+        if (xfadeOverlay != null && xfadeOverlay.Visible)
+        {
+            xfadeAlpha -= 0.16;
+            if (xfadeAlpha <= 0)
+            {
+                xfadeAlpha = 0;
+                xfadeOverlay.Visible = false; xfadeOverlay.SendToBack();
+                xfadeBmpOld?.Dispose(); xfadeBmpNew?.Dispose(); xfadeBmpOld = xfadeBmpNew = null;
+            }
+            else xfadeOverlay.Invalidate();
+        }
+
+        // window launch fade-in
+        if (Opacity < 1.0) Opacity = Math.Min(1.0, Opacity + 0.12);
 
         // button hover fades
         Ui.TickButtonFx();

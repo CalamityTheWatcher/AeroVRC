@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 
 namespace AeroVRC;
 
@@ -47,6 +48,9 @@ public partial class MainForm : Form
     internal double fxPhase;
     internal double logoPhase;
     internal int navSliderTarget;
+    float navSliderPos; double navSliderVel;      // spring for the elastic nav slider
+    // Page-crossfade overlay (old page dissolves into the new one).
+    Panel xfadeOverlay; Bitmap xfadeBmpOld, xfadeBmpNew; double xfadeAlpha;
 
     internal readonly Dictionary<string, Panel> pages = new();
     internal bool photosLoaded;
@@ -140,6 +144,7 @@ public partial class MainForm : Form
         }
         else
         {
+            Opacity = 0;   // fade the window in on launch (ramped by the fx timer)
             // Animated welcome popup on startup (dismiss with button, Enter, or Esc).
             if (config.ShowWelcome) { try { Shown += (s, e) => ShowWelcomeScreen(); } catch { } }
         }
@@ -455,7 +460,7 @@ public partial class MainForm : Form
                 int lo = navList.Top, hi = navList.Top + navList.Height - navSlider.Height;
                 navSliderTarget = Math.Max(lo, Math.Min(hi, target));
                 navSlider.BackColor = Ui.Accent;
-                if (!navSlider.Visible) { navSlider.Top = navSliderTarget; navSlider.Visible = true; }
+                if (!navSlider.Visible) { navSliderPos = navSliderTarget; navSliderVel = 0; navSlider.Top = navSliderTarget; navSlider.Visible = true; }
             }
             else
             {
@@ -682,6 +687,15 @@ public partial class MainForm : Form
 
     internal void ShowPage(string name)
     {
+        // Snapshot the outgoing page for a crossfade (skipped on first show / harness).
+        Bitmap oldBmp = null;
+        bool animate = fxTimer != null && fxTimer.Enabled && currentPage != name;
+        if (animate && pages.TryGetValue(currentPage, out var oldPg) && oldPg.Visible && oldPg.Width > 4 && oldPg.Height > 4)
+        {
+            try { oldBmp = new Bitmap(oldPg.Width, oldPg.Height); oldPg.DrawToBitmap(oldBmp, new Rectangle(0, 0, oldPg.Width, oldPg.Height)); }
+            catch { oldBmp?.Dispose(); oldBmp = null; }
+        }
+
         currentPage = name;
         foreach (var k in pages.Keys) pages[k].Visible = (k == name);
         if (pages.TryGetValue(name, out var pg)) pg.BringToFront();
@@ -698,6 +712,44 @@ public partial class MainForm : Form
         // The dashboard is only updated by the tick while it's the visible page, so
         // refresh it immediately on switch rather than waiting up to a second.
         if (name == "Dashboard") { try { UpdateDashboard(lastProc); } catch { } }
+
+        // Kick off the crossfade: snapshot the freshly-shown page, dissolve old -> new.
+        if (oldBmp != null && pages.TryGetValue(name, out var npg) && npg.Width > 4 && npg.Height > 4)
+        {
+            Bitmap newBmp = null;
+            try { newBmp = new Bitmap(npg.Width, npg.Height); npg.DrawToBitmap(newBmp, new Rectangle(0, 0, npg.Width, npg.Height)); }
+            catch { newBmp?.Dispose(); newBmp = null; }
+            if (newBmp != null) StartPageXfade(oldBmp, newBmp); else oldBmp.Dispose();
+        }
+        else oldBmp?.Dispose();
+    }
+
+    void StartPageXfade(Bitmap oldBmp, Bitmap newBmp)
+    {
+        xfadeBmpOld?.Dispose(); xfadeBmpNew?.Dispose();
+        xfadeBmpOld = oldBmp; xfadeBmpNew = newBmp; xfadeAlpha = 1.0;
+        if (xfadeOverlay == null)
+        {
+            xfadeOverlay = new Panel { BackColor = Ui.Bg };
+            Ui.SetDoubleBuffered(xfadeOverlay);
+            xfadeOverlay.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                var r = new Rectangle(0, 0, xfadeOverlay.Width, xfadeOverlay.Height);
+                if (xfadeBmpNew != null) g.DrawImage(xfadeBmpNew, r, 0, 0, xfadeBmpNew.Width, xfadeBmpNew.Height, GraphicsUnit.Pixel);
+                if (xfadeBmpOld != null && xfadeAlpha > 0)
+                {
+                    var cm = new ColorMatrix { Matrix33 = (float)xfadeAlpha };
+                    using var ia = new ImageAttributes(); ia.SetColorMatrix(cm);
+                    g.DrawImage(xfadeBmpOld, r, 0, 0, xfadeBmpOld.Width, xfadeBmpOld.Height, GraphicsUnit.Pixel, ia);
+                }
+            };
+            content.Controls.Add(xfadeOverlay);
+        }
+        xfadeOverlay.Bounds = content.ClientRectangle;
+        xfadeOverlay.Visible = true;
+        xfadeOverlay.BringToFront();
+        xfadeOverlay.Invalidate();
     }
 
     // ========================================================================
