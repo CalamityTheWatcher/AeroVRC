@@ -31,14 +31,20 @@ $Csproj     = Join-Path $ProjectDir 'AeroVRC.csproj'
 $ScExe      = Join-Path $ProjectDir 'publish\sc\AeroVRC.exe'
 
 # Pick a dotnet that actually has an SDK (the machine-wide one may be runtime-only).
+# Detect via the filesystem (an "sdk\<version>" folder next to dotnet.exe) instead
+# of spawning "dotnet --list-sdks", which can report empty in some launch contexts.
 function Resolve-DotnetWithSdk {
     $cands = @(
         "$env:LOCALAPPDATA\Microsoft\dotnet-sdk9\dotnet.exe",
-        (Get-Command dotnet -ErrorAction SilentlyContinue).Source
+        (Get-Command dotnet -ErrorAction SilentlyContinue).Source,
+        "$env:ProgramFiles\dotnet\dotnet.exe"
     ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
     foreach ($c in $cands) {
-        $sdks = & $c --list-sdks 2>$null
-        if ($LASTEXITCODE -eq 0 -and $sdks) { return $c }
+        $sdkDir = Join-Path (Split-Path $c -Parent) 'sdk'
+        if (Test-Path $sdkDir) {
+            $hasVer = Get-ChildItem -LiteralPath $sdkDir -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($hasVer) { return $c }
+        }
     }
     return $null
 }

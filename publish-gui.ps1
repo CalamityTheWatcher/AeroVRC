@@ -26,16 +26,21 @@ $Csproj     = Join-Path $ProjectDir 'AeroVRC.csproj'
 
 # ---- locate a dotnet that actually has an SDK (not just the runtime) ----
 # The machine-wide C:\Program Files\dotnet is runtime-only here; the SDK lives in
-# the local no-admin copy. Verify with --list-sdks so we never pick a host that
-# can't build ("No .NET SDKs were found").
+# the local no-admin copy. Detect the SDK by the filesystem (an "sdk\<version>"
+# folder next to dotnet.exe) rather than spawning "dotnet --list-sdks", which can
+# come back empty in some launch contexts and wrongly report "no SDK".
 function Resolve-DotnetWithSdk {
     $cands = @(
         "$env:LOCALAPPDATA\Microsoft\dotnet-sdk9\dotnet.exe",
-        (Get-Command dotnet -ErrorAction SilentlyContinue).Source
+        (Get-Command dotnet -ErrorAction SilentlyContinue).Source,
+        "$env:ProgramFiles\dotnet\dotnet.exe"
     ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
     foreach ($c in $cands) {
-        $sdks = & $c --list-sdks 2>$null
-        if ($LASTEXITCODE -eq 0 -and $sdks) { return $c }
+        $sdkDir = Join-Path (Split-Path $c -Parent) 'sdk'
+        if (Test-Path $sdkDir) {
+            $hasVer = Get-ChildItem -LiteralPath $sdkDir -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($hasVer) { return $c }
+        }
     }
     return $null
 }
@@ -311,10 +316,12 @@ $timer.Add_Tick({
 })
 
 # ---- tool checks ----
-if (-not $dotnet) { $actionButtons | ForEach-Object { $_.Enabled = $false }; $logBox.AppendText("WARNING: .NET SDK not found - build/publish disabled.`r`n") }
-if (-not $gh)     { $btnRelease.Enabled = $false; $btnPre.Enabled = $false; $logBox.AppendText("WARNING: gh CLI not found - releases disabled (publish still works).`r`n") }
+if ($dotnet) { $logBox.AppendText("dotnet SDK: $dotnet`r`n") }
+else { $actionButtons | ForEach-Object { $_.Enabled = $false }; $logBox.AppendText("WARNING: no .NET SDK found (looked in %LOCALAPPDATA%\Microsoft\dotnet-sdk9\sdk and PATH) - build/publish disabled.`r`n") }
+if ($gh) { $logBox.AppendText("gh CLI:     $gh`r`n") }
+else { $btnRelease.Enabled = $false; $btnPre.Enabled = $false; $logBox.AppendText("WARNING: gh CLI not found - releases disabled (publish still works).`r`n") }
 
-if ($SelfTest) { Write-Host "publish-gui.ps1: form built OK ($($form.Controls.Count) controls)"; $form.Dispose(); return }
+if ($SelfTest) { Write-Host "publish-gui.ps1: form built OK ($($form.Controls.Count) controls); dotnet=[$dotnet]; gh=[$gh]"; $form.Dispose(); return }
 
 $timer.Start()
 [void]$form.ShowDialog()
