@@ -24,9 +24,22 @@ Add-Type -AssemblyName System.Drawing
 $ProjectDir = $PSScriptRoot
 $Csproj     = Join-Path $ProjectDir 'AeroVRC.csproj'
 
-# ---- locate tools ----
-$dotnet = "$env:LOCALAPPDATA\Microsoft\dotnet-sdk9\dotnet.exe"
-if (-not (Test-Path $dotnet)) { $dotnet = (Get-Command dotnet -ErrorAction SilentlyContinue).Source }
+# ---- locate a dotnet that actually has an SDK (not just the runtime) ----
+# The machine-wide C:\Program Files\dotnet is runtime-only here; the SDK lives in
+# the local no-admin copy. Verify with --list-sdks so we never pick a host that
+# can't build ("No .NET SDKs were found").
+function Resolve-DotnetWithSdk {
+    $cands = @(
+        "$env:LOCALAPPDATA\Microsoft\dotnet-sdk9\dotnet.exe",
+        (Get-Command dotnet -ErrorAction SilentlyContinue).Source
+    ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+    foreach ($c in $cands) {
+        $sdks = & $c --list-sdks 2>$null
+        if ($LASTEXITCODE -eq 0 -and $sdks) { return $c }
+    }
+    return $null
+}
+$dotnet = Resolve-DotnetWithSdk
 $gh = "C:\Program Files\GitHub CLI\gh.exe"
 if (-not (Test-Path $gh)) { $gh = (Get-Command gh -ErrorAction SilentlyContinue).Source }
 

@@ -30,11 +30,22 @@ $Tag        = "v$Version"
 $Csproj     = Join-Path $ProjectDir 'AeroVRC.csproj'
 $ScExe      = Join-Path $ProjectDir 'publish\sc\AeroVRC.exe'
 
-$dotnet = "$env:LOCALAPPDATA\Microsoft\dotnet-sdk9\dotnet.exe"
-if (-not (Test-Path $dotnet)) { $dotnet = (Get-Command dotnet -ErrorAction SilentlyContinue).Source }
+# Pick a dotnet that actually has an SDK (the machine-wide one may be runtime-only).
+function Resolve-DotnetWithSdk {
+    $cands = @(
+        "$env:LOCALAPPDATA\Microsoft\dotnet-sdk9\dotnet.exe",
+        (Get-Command dotnet -ErrorAction SilentlyContinue).Source
+    ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+    foreach ($c in $cands) {
+        $sdks = & $c --list-sdks 2>$null
+        if ($LASTEXITCODE -eq 0 -and $sdks) { return $c }
+    }
+    return $null
+}
+$dotnet = Resolve-DotnetWithSdk
 $gh = "C:\Program Files\GitHub CLI\gh.exe"
 if (-not (Test-Path $gh)) { $gh = (Get-Command gh -ErrorAction SilentlyContinue).Source }
-if (-not $dotnet) { throw "dotnet SDK not found." }
+if (-not $dotnet) { throw "No .NET SDK found (only a runtime?). Install the .NET 9 SDK." }
 if (-not $gh)     { throw "gh CLI not found." }
 
 Write-Host "== Releasing AeroVRC $Tag ==" -ForegroundColor Cyan
