@@ -299,6 +299,7 @@ public partial class MainForm
             dashInWorld.Text = "-";
         }
         dashPlayers.Text = players.Count.ToString();
+        PushSpark("players", players.Count);
         dashRestarts.Text = $"{sessionRestarts} / {config.Stats.TotalRestarts}";
         // Last restart without seconds so it fits its card at any scaling.
         var lr = config.Stats.LastRestart;
@@ -308,6 +309,12 @@ public partial class MainForm
         // folder scan - refresh them on an interval instead of every second.
         if (tick % 10 == 0 || dashDiskCache == null) dashDiskCache = GetDiskFreeGB();
         dashDisk.Text = dashDiskCache.HasValue ? $"{dashDiskCache.Value} GB" : "-";
+        if (dashDiskCache.HasValue)
+        {
+            int minGb = Math.Max(1, config.DiskMonitor.MinGB);
+            dashDisk.ForeColor = dashDiskCache.Value <= minGb ? Ui.Danger : dashDiskCache.Value <= minGb * 2 ? Ui.Warning : Ui.Success;
+        }
+        else dashDisk.ForeColor = Ui.TextMuted;
         if (tick % 15 == 0 || dashPhotoCache == null) dashPhotoCache = GetPhotoCount();
         dashPhotos.Text = dashPhotoCache.ToString();
         var todayKey = DateTime.Now.ToString("yyyy-MM-dd");
@@ -316,10 +323,17 @@ public partial class MainForm
         if (tick % 5 == 0 || dashSteamVRCache == null)
             dashSteamVRCache = Process.GetProcessesByName(SteamVRProcess).Length > 0 ? "Running" : "Not running";
         dashSteamVR.Text = dashSteamVRCache;
-        dashCpu.Text = proc != null && vrcCpuPct.HasValue ? $"{vrcCpuPct.Value}%" : "-";
+        if (proc != null && vrcCpuPct.HasValue)
+        {
+            dashCpu.Text = $"{vrcCpuPct.Value}%";
+            dashCpu.ForeColor = vrcCpuPct.Value < 70 ? Ui.Success : vrcCpuPct.Value < 90 ? Ui.Warning : Ui.Danger;
+            PushSpark("cpu", vrcCpuPct.Value);
+        }
+        else { dashCpu.Text = "-"; dashCpu.ForeColor = Ui.TextMuted; }
         dashRam.Text = proc != null && vrcRamMB.HasValue
             ? (vrcRamMB.Value >= 1024 ? $"{vrcRamMB.Value / 1024.0:0.0} GB" : $"{vrcRamMB.Value} MB")
             : "-";
+        if (proc != null && vrcRamMB.HasValue) PushSpark("ram", vrcRamMB.Value);
         string prioTxt = "-";
         if (proc != null) { try { prioTxt = proc.PriorityClass.ToString(); } catch { } }
         dashPrio.Text = prioTxt;
@@ -327,26 +341,52 @@ public partial class MainForm
         // GPU / VRAM / temp cards (fed by UpdateGpuStats every 5s).
         if (config.GpuMonitor.Enabled && hwSource.Length > 0)
         {
-            dashGpu.Text = gpuStats.Util.HasValue ? $"{(int)gpuStats.Util.Value}%" : "-";
+            if (gpuStats.Util.HasValue)
+            {
+                var u = (int)gpuStats.Util.Value;
+                dashGpu.Text = $"{u}%";
+                dashGpu.ForeColor = u < 80 ? Ui.Success : u < 95 ? Ui.Warning : Ui.Danger;
+                PushSpark("gpu", u);
+            }
+            else { dashGpu.Text = "-"; dashGpu.ForeColor = Ui.TextMuted; }
             if (gpuStats.VramMB.HasValue)
             {
                 var vtxt = gpuStats.VramMB.Value >= 1024 ? $"{gpuStats.VramMB.Value / 1024.0:0.0} GB" : $"{gpuStats.VramMB.Value} MB";
-                if (gpuStats.VramTotMB.HasValue && gpuStats.VramTotMB.Value > 0) vtxt += $" / {gpuStats.VramTotMB.Value / 1024.0:0} GB";
+                if (gpuStats.VramTotMB.HasValue && gpuStats.VramTotMB.Value > 0)
+                {
+                    vtxt += $" / {gpuStats.VramTotMB.Value / 1024.0:0} GB";
+                    double pct = 100.0 * gpuStats.VramMB.Value / gpuStats.VramTotMB.Value;
+                    dashVram.ForeColor = pct < 80 ? Ui.Success : pct < config.GpuMonitor.VramPct ? Ui.Warning : Ui.Danger;
+                }
+                else dashVram.ForeColor = Ui.Text;
                 dashVram.Text = vtxt;
             }
-            else dashVram.Text = "-";
+            else { dashVram.Text = "-"; dashVram.ForeColor = Ui.TextMuted; }
             const string deg = "°C";
             var gt = gpuStats.TempC.HasValue ? $"{gpuStats.TempC.Value:0}{deg}" : "-";
             var ct = gpuStats.CpuTempC.HasValue ? $"{gpuStats.CpuTempC.Value:0}{deg}" : "-";
             dashGpuTemp.Text = $"{gt} / {ct}";
+            if (gpuStats.TempC.HasValue)
+            {
+                int gmax = Math.Max(50, config.TempWarn.GpuMaxC);
+                dashGpuTemp.ForeColor = gpuStats.TempC.Value < gmax - 15 ? Ui.Success : gpuStats.TempC.Value < gmax ? Ui.Warning : Ui.Danger;
+            }
+            else dashGpuTemp.ForeColor = Ui.Text;
         }
         else
         {
             dashGpu.Text = "-"; dashVram.Text = "-"; dashGpuTemp.Text = "-";
+            dashGpu.ForeColor = Ui.TextMuted; dashVram.ForeColor = Ui.TextMuted; dashGpuTemp.ForeColor = Ui.TextMuted;
         }
 
         // Ping / FPS / connection health cards.
-        dashPing.Text = config.PingMonitor.Enabled && pingMs.HasValue ? $"{pingMs.Value} ms" : "-";
+        if (config.PingMonitor.Enabled && pingMs.HasValue)
+        {
+            dashPing.Text = $"{pingMs.Value} ms";
+            dashPing.ForeColor = pingMs.Value < 80 ? Ui.Success : pingMs.Value < 150 ? Ui.Warning : Ui.Danger;
+            PushSpark("ping", pingMs.Value);
+        }
+        else { dashPing.Text = "-"; dashPing.ForeColor = Ui.TextMuted; }
         if (config.PingMonitor.Enabled && netState.Length > 0)
         {
             dashNet.Text = netState;
@@ -359,7 +399,13 @@ public partial class MainForm
         }
         else { dashNet.Text = "-"; dashNet.ForeColor = Ui.Text; }
         bool fpsFresh = vrcFps.HasValue && (DateTime.Now - vrcFpsAt).TotalSeconds <= 15;
-        dashFps.Text = fpsFresh ? $"{vrcFps.Value:0}" : "-";
+        if (fpsFresh)
+        {
+            dashFps.Text = $"{vrcFps.Value:0}";
+            dashFps.ForeColor = vrcFps.Value >= 72 ? Ui.Success : vrcFps.Value >= 45 ? Ui.Warning : Ui.Danger;
+            PushSpark("fps", vrcFps.Value);
+        }
+        else { dashFps.Text = "-"; dashFps.ForeColor = Ui.TextMuted; }
         // Frame-time graph repaint (every 2s; cheap line redraw).
         if (tick % 2 == 0) framePanel.Invalidate();
 
@@ -388,6 +434,9 @@ public partial class MainForm
         try { dashMic.Text = MicCtl.GetMicMute() ? "Muted" : "Live"; }
         catch { dashMic.Text = "Unavailable"; }
         dashAvatars.Text = avatarSwitches.ToString();
+
+        // Repaint sparkline cards so their traces update (only while sparkles are on).
+        if (config.Effects.Sparkles) foreach (var c in sparkCards) c.Invalidate();
 
         // Quick toggles + Who's Here refresh.
         qtDesktop.Checked = config.DesktopMode;

@@ -25,6 +25,13 @@ public partial class MainForm
     internal List<string> whoNames = new();
     string whoCtxName = "";
 
+    // Dashboard stat-card visuals: per-card icon glyph + colour, and an optional
+    // rolling sparkline (drawn only while the sparkle effect is enabled).
+    class DashFx { public char Glyph; public Color IconColor; public string Spark; }
+    readonly Dictionary<Panel, DashFx> dashFx = new();
+    readonly Dictionary<string, List<double>> sparkHist = new();
+    readonly List<Panel> sparkCards = new();
+
     void BuildDashboardPage()
     {
         pgDash = NewPage("Dashboard");
@@ -167,64 +174,85 @@ public partial class MainForm
         };
         worldCard.Controls.Add(dashHomeBtn);
 
-        // Stat cards grid
+        // Stat cards grid - grouped into Session / Performance / System bands.
         dashGrid = new TableLayoutPanel
         {
-            Location = new Point(4, 200), Size = new Size(840, 1038),
+            Location = new Point(4, 200), Size = new Size(840, 1176),
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-            ColumnCount = 3, RowCount = 9, BackColor = Color.Transparent,
+            ColumnCount = 3, RowCount = 12, BackColor = Color.Transparent,
         };
         for (int i = 0; i < 3; i++) dashGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
-        for (int i = 0; i < 7; i++) dashGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 104));
-        dashGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 132));   // frame-time graph
-        dashGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 178));   // who's here
+        int[] rowH = { 36, 104, 104, 104, 36, 104, 104, 104, 132, 36, 104, 178 };
+        foreach (var rh in rowH) dashGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, rh));
         pgDash.Controls.Add(dashGrid);
 
-        // Builds a stat card into the grid; returns the value label for later updates.
-        Label AddStatCard(string title, int col, int row)
+        // Section header spanning all three columns.
+        void AddSectionHeader(string text, int row)
+        {
+            var hdr = new Label
+            {
+                Name = "section", Text = text, Font = Ui.FontHeader,
+                AutoSize = true, Margin = new Padding(4, 12, 0, 2),
+            };
+            dashGrid.Controls.Add(hdr, 0, row);
+            dashGrid.SetColumnSpan(hdr, 3);
+        }
+
+        // Builds a stat card (icon chip + title + value, optional sparkline).
+        Label AddStatCard(string title, int col, int row, char glyph, Color iconColor, string spark = null)
         {
             var card = Ui.NewCard();
             card.Margin = new Padding(0, 0, 12, 12);
             card.Dock = DockStyle.Fill;
+            Ui.SetDoubleBuffered(card);
 
             var t = new Label
             {
                 Name = "onCardMuted", Text = title.ToUpper(), Font = Ui.FontSmall,
-                AutoSize = true, Location = new Point(16, 16),
+                AutoSize = true, Location = new Point(56, 18),
             };
             card.Controls.Add(t);
 
             var v = new Label
             {
                 Name = "onCard", Text = "-", Font = Ui.FontValue,
-                AutoSize = true, Location = new Point(16, 42),
+                AutoSize = true, Location = new Point(56, 42),
             };
             card.Controls.Add(v);
+
+            dashFx[card] = new DashFx { Glyph = glyph, IconColor = iconColor, Spark = spark };
+            if (spark != null) sparkCards.Add(card);
+            card.Paint += (s, e) => DrawDashCardFx((Panel)s, e.Graphics);
 
             dashGrid.Controls.Add(card, col, row);
             return v;
         }
-        dashUptime = AddStatCard("VRChat uptime", 0, 0);
-        dashInWorld = AddStatCard("In-world time", 1, 0);
-        dashPlayers = AddStatCard("Players nearby", 2, 0);
-        dashRestarts = AddStatCard("Restarts (session/total)", 0, 1);
-        dashLastCrash = AddStatCard("Last restart", 1, 1);
-        dashDisk = AddStatCard("Disk free", 2, 1);
-        dashPhotos = AddStatCard("Photos this session", 0, 2);
-        dashToday = AddStatCard("Played today", 1, 2);
-        dashSteamVR = AddStatCard("SteamVR", 2, 2);
-        dashCpu = AddStatCard("CPU (VRChat)", 0, 3);
-        dashRam = AddStatCard("RAM (VRChat)", 1, 3);
-        dashPrio = AddStatCard("VRChat priority", 2, 3);
-        dashNext = AddStatCard("Next timer", 0, 4);
-        dashMic = AddStatCard("Microphone", 1, 4);
-        dashAvatars = AddStatCard("Avatar switches (session)", 2, 4);
-        dashGpu = AddStatCard("GPU load", 0, 5);
-        dashVram = AddStatCard("VRAM", 1, 5);
-        dashGpuTemp = AddStatCard("Temps (GPU / CPU)", 2, 5);
-        dashPing = AddStatCard("Ping", 0, 6);
-        dashFps = AddStatCard("FPS (via OSC)", 1, 6);
-        dashNet = AddStatCard("Connection", 2, 6);
+
+        var cAzure = Ui.Accent; var cViolet = Ui.Accent2; var cTeal = Color.FromArgb(72, 190, 200);
+        var cGreen = Ui.Success; var cAmber = Ui.Warning; var cRose = Color.FromArgb(240, 120, 150);
+        var cIndigo = Color.FromArgb(120, 138, 244); var cPurple = Color.FromArgb(158, 124, 244);
+
+        AddSectionHeader("SESSION", 0);
+        dashUptime    = AddStatCard("VRChat uptime", 0, 1, '◷', cAzure);
+        dashInWorld   = AddStatCard("In-world time", 1, 1, '◉', cTeal);
+        dashPlayers   = AddStatCard("Players nearby", 2, 1, '☺', cViolet, "players");
+        dashRestarts  = AddStatCard("Restarts (session/total)", 0, 2, '⟳', cAmber);
+        dashLastCrash = AddStatCard("Last restart", 1, 2, '↺', cPurple);
+        dashToday     = AddStatCard("Played today", 2, 2, '◔', cGreen);
+        dashPhotos    = AddStatCard("Photos this session", 0, 3, '▣', cRose);
+        dashAvatars   = AddStatCard("Avatar switches (session)", 1, 3, '❂', cIndigo);
+        dashNext      = AddStatCard("Next timer", 2, 3, '⧖', cAmber);
+
+        AddSectionHeader("PERFORMANCE", 4);
+        dashCpu     = AddStatCard("CPU (VRChat)", 0, 5, '▦', cAzure, "cpu");
+        dashRam     = AddStatCard("RAM (VRChat)", 1, 5, '▥', cViolet, "ram");
+        dashPrio    = AddStatCard("VRChat priority", 2, 5, '▲', cTeal);
+        dashGpu     = AddStatCard("GPU load", 0, 6, '◧', cPurple, "gpu");
+        dashVram    = AddStatCard("VRAM", 1, 6, '▨', cIndigo);
+        dashGpuTemp = AddStatCard("Temps (GPU / CPU)", 2, 6, '♨', cAmber);
+        dashFps     = AddStatCard("FPS (via OSC)", 0, 7, '⚡', cGreen, "fps");
+        dashPing    = AddStatCard("Ping", 1, 7, '⇅', cTeal, "ping");
+        dashNet     = AddStatCard("Connection", 2, 7, '⇄', cAzure);
 
         // Frame-time graph (fed by the OSC FPS feed; spans the full row).
         var frameCard = Ui.NewCard();
@@ -240,8 +268,14 @@ public partial class MainForm
         framePanel.Paint += (s, e) => DrawFrameChart((Panel)s, e.Graphics);
         frameCard.Controls.Add(framePanel);
         frameCard.Controls.Add(frameHdr);
-        dashGrid.Controls.Add(frameCard, 0, 7);
+        dashGrid.Controls.Add(frameCard, 0, 8);
         dashGrid.SetColumnSpan(frameCard, 3);
+
+        // System band (machine-level, changes slowly).
+        AddSectionHeader("SYSTEM", 9);
+        dashDisk    = AddStatCard("Disk free", 0, 10, '▤', Ui.Accent);
+        dashSteamVR = AddStatCard("SteamVR", 1, 10, '◈', Ui.Accent2);
+        dashMic     = AddStatCard("Microphone", 2, 10, '◉', Ui.Success);
 
         // Who's Here panel: current players with their join times (spans the full row).
         var whoCard = Ui.NewCard();
@@ -268,7 +302,7 @@ public partial class MainForm
         whoCard.Controls.Add(whoExportBtn);
         whoExportBtn.BringToFront();
         whoCard.Resize += (s, e) => whoExportBtn.Location = new Point(((Panel)s).Width - 122, 8);
-        dashGrid.Controls.Add(whoCard, 0, 8);
+        dashGrid.Controls.Add(whoCard, 0, 11);
         dashGrid.SetColumnSpan(whoCard, 3);
 
         // Roster export: who was present in this instance, with join/leave timestamps.
@@ -389,6 +423,78 @@ public partial class MainForm
         double curMs = vals[n - 1];
         using var capBrush = new SolidBrush(Ui.Text);
         g.DrawString($"now {curMs:0.0} ms ({1000 / Math.Max(0.1, curMs):0} FPS)   avg {avg:0.0} ms   worst {curMax:0.0} ms", lblFont, capBrush, 6, 2);
+    }
+
+    // Icon chip (+ optional sparkline) painted on top of a dashboard stat card.
+    void DrawDashCardFx(Panel card, Graphics g)
+    {
+        if (!dashFx.TryGetValue(card, out var fx)) return;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        const float cx = 14, cy = 24, sz = 34;
+        using (var chip = Ui.RoundedPath(cx, cy, sz, sz, 9))
+        using (var fill = new SolidBrush(Color.FromArgb(38, fx.IconColor)))
+            g.FillPath(fill, chip);
+        DrawGlyph(g, fx.Glyph, new RectangleF(cx, cy, sz, sz), fx.IconColor, 18f);
+        if (fx.Spark != null && config.Effects.Sparkles &&
+            sparkHist.TryGetValue(fx.Spark, out var hist) && hist.Count >= 2)
+            DrawSparkline(g, card, hist, fx.IconColor);
+    }
+
+    // Draws a Segoe UI Symbol glyph scaled + centred into a cell (same technique as
+    // the nav icons), so every glyph reads at a uniform size.
+    void DrawGlyph(Graphics g, char ch, RectangleF cell, Color color, float target)
+    {
+        using var path = new GraphicsPath();
+        try
+        {
+            path.AddString(ch.ToString(), navIconFamily, 0, 34f, new PointF(0, 0), StringFormat.GenericTypographic);
+            var bn = path.GetBounds();
+            if (bn.Width < 0.1f || bn.Height < 0.1f) return;
+            float scale = target / Math.Max(bn.Width, bn.Height);
+            float gw = bn.Width * scale, gh = bn.Height * scale;
+            float tx = cell.X + (cell.Width - gw) / 2f - bn.X * scale;
+            float ty = cell.Y + (cell.Height - gh) / 2f - bn.Y * scale;
+            using var m = new Matrix(); m.Translate(tx, ty); m.Scale(scale, scale); path.Transform(m);
+            using var brush = new SolidBrush(color); g.FillPath(brush, path);
+        }
+        catch { }
+    }
+
+    // Small rolling sparkline in the lower area of a card (below the value).
+    void DrawSparkline(Graphics g, Panel card, List<double> hist, Color color)
+    {
+        int n = hist.Count;
+        float x0 = 56, x1 = card.Width - 14, y0 = 66, y1 = card.Height - 12;
+        if (x1 - x0 < 24 || y1 - y0 < 8) return;
+        double mn = double.MaxValue, mx = double.MinValue;
+        foreach (var v in hist) { if (v < mn) mn = v; if (v > mx) mx = v; }
+        if (mx - mn < 1e-6) mx = mn + 1;
+        var pts = new PointF[n];
+        for (int i = 0; i < n; i++)
+        {
+            float x = x0 + (x1 - x0) * (i / (float)(n - 1));
+            float y = (float)(y1 - (hist[i] - mn) / (mx - mn) * (y1 - y0));
+            pts[i] = new PointF(x, y);
+        }
+        using (var area = new GraphicsPath())
+        {
+            area.AddLines(pts);
+            area.AddLine(pts[n - 1].X, y1, pts[0].X, y1);
+            area.CloseFigure();
+            using var ab = new SolidBrush(Color.FromArgb(28, color));
+            g.FillPath(ab, area);
+        }
+        using var pen = new Pen(Color.FromArgb(210, color), 1.4f);
+        g.DrawLines(pen, pts);
+    }
+
+    // Push a live value into a named sparkline buffer (bounded ring).
+    void PushSpark(string key, double? v)
+    {
+        if (!v.HasValue) return;
+        if (!sparkHist.TryGetValue(key, out var l)) { l = new List<double>(); sparkHist[key] = l; }
+        l.Add(v.Value);
+        if (l.Count > 48) l.RemoveAt(0);
     }
 
     internal void RefreshWhoList()

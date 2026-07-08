@@ -668,6 +668,7 @@ public partial class MainForm
 
     void DrawRestartChart(Panel panel, Graphics g)
     {
+        g.SmoothingMode = SmoothingMode.AntiAlias;
         g.Clear(Ui.Card);
         const int days = 14;
         var today = DateTime.Now.Date;
@@ -686,17 +687,24 @@ public partial class MainForm
         int baseY = h - lblH - 4, topPad = lblH + 2;
         float slot = w / (float)days;
         float barW = Math.Min(20, slot * 0.6f);
-        using var brush = new SolidBrush(Ui.Danger);
         using var muted = new SolidBrush(Ui.TextMuted);
         using var fmt = new StringFormat { Alignment = StringAlignment.Center };
+        using (var basePen = new Pen(Ui.Border, 1)) g.DrawLine(basePen, 0, baseY, w, baseY);
         for (int i = 0; i < days; i++)
         {
             float cx = slot * i + slot / 2;
             int bh = (int)(vals[i].C / (double)max * (baseY - topPad));
             if (bh < 2 && vals[i].C > 0) bh = 2;
-            if (bh > 0) g.FillRectangle(brush, cx - barW / 2, baseY - bh, barW, bh);
-            var r = new RectangleF(cx - slot / 2, baseY + 2, slot, lblH);
-            g.DrawString(vals[i].L, lblFont, muted, r, fmt);
+            if (bh > 0)
+            {
+                float x = cx - barW / 2, y = baseY - bh, r = Math.Min(4f, barW / 2f);
+                using var path = TopRoundedRect(x, y, barW, bh, r);
+                var gr = new RectangleF(x, y - 1, barW, bh + 2);
+                using var b = new LinearGradientBrush(gr, Ui.Shift(Ui.Danger, 34), Ui.Danger, 90f);
+                g.FillPath(b, path);
+            }
+            var rr = new RectangleF(cx - slot / 2, baseY + 2, slot, lblH);
+            g.DrawString(vals[i].L, lblFont, muted, rr, fmt);
             if (vals[i].C > 0)
             {
                 var vr = new RectangleF(cx - slot / 2, baseY - bh - lblH, slot, lblH);
@@ -707,6 +715,7 @@ public partial class MainForm
 
     void DrawHourChart(Panel panel, Graphics g)
     {
+        g.SmoothingMode = SmoothingMode.AntiAlias;
         g.Clear(Ui.Card);
         int w = panel.Width, h = panel.Height;
         using var lblFont = new Font("Segoe UI", 7.5f);
@@ -722,14 +731,21 @@ public partial class MainForm
         }
         float slot = w / 24f;
         float barW = Math.Max(3, slot * 0.65f);
-        using var brush = new SolidBrush(Ui.Accent);
         using var muted = new SolidBrush(Ui.TextMuted);
+        using (var basePen = new Pen(Ui.Border, 1)) g.DrawLine(basePen, 0, baseY, w, baseY);
         for (int hr = 0; hr < 24; hr++)
         {
             float cx = slot * hr + slot / 2;
             int bh = (int)(vals[hr] / (double)max * (baseY - topPad));
             if (bh < 2 && vals[hr] > 0) bh = 2;
-            if (bh > 0) g.FillRectangle(brush, cx - barW / 2, baseY - bh, barW, bh);
+            if (bh > 0)
+            {
+                float x = cx - barW / 2, y = baseY - bh, r = Math.Min(3f, barW / 2f);
+                using var path = TopRoundedRect(x, y, barW, bh, r);
+                var gr = new RectangleF(x, y - 1, barW, bh + 2);
+                using var b = new LinearGradientBrush(gr, Ui.AccentHover, Ui.Accent2, 90f);
+                g.FillPath(b, path);
+            }
             if (hr % 6 == 0) g.DrawString($"{hr:00}", lblFont, muted, cx - 8, baseY + 2);
         }
     }
@@ -786,8 +802,9 @@ public partial class MainForm
             int bw = (int)(r.Sec / (double)max * barMaxW);
             if (bw < 3) bw = 3;
             var col = GetItypeColor(r.Name);
-            using (var path = Ui.RoundedPath(barX, y + (rowH - barH) / 2f, bw, barH, 3))
-            using (var br = new SolidBrush(col))
+            var barRect = new RectangleF(barX, y + (rowH - barH) / 2f, bw, barH);
+            using (var path = Ui.RoundedPath(barRect.X, barRect.Y, barRect.Width, barRect.Height, 3))
+            using (var br = new LinearGradientBrush(barRect, Ui.Shift(col, 28), col, LinearGradientMode.Horizontal))
                 g.FillPath(br, path);
             int pct = total > 0 ? (int)(100.0 * r.Sec / total) : 0;
             var txt = $"{FormatDuration(r.Sec)}  ({pct}%)";

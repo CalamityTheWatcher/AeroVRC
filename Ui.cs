@@ -256,25 +256,32 @@ public static class Ui
 
     // A rounded surface panel used as a "card" - solid fill (labels sit flush on
     // it), rounded border, and highlight/shade edges for a soft raised look.
+    // Cards currently under the cursor (drives the subtle hover-lift).
+    static readonly HashSet<Panel> hoverCards = new();
     public static Panel NewCard()
     {
         var p = new Panel();
         p.BackColor = Card;
+        SetDoubleBuffered(p);
         p.Paint += (sender, e) =>
         {
             var s = (Panel)sender;
             var g = e.Graphics;
             int w = s.Width, h = s.Height;
             if (w < 6 || h < 6) return;
+            bool hov = hoverCards.Contains(s);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.Clear(OpaqueBack(s));
             var path = RoundedPath(0.5f, 0.5f, w - 1.5f, h - 1.5f, 10);
             // Solid body (child labels sit flush on Card, so no gradient here); depth
             // comes from the backdrop showing through + a lit top edge below.
             using (var fill = new SolidBrush(Card)) g.FillPath(fill, path);
-            using (var pen = new Pen(Border, 1)) g.DrawPath(pen, path);
+            // Hover-lift: brighter border + an accent-tinted rim (no fill change, so the
+            // opaque child labels never mismatch the body colour).
+            using (var pen = new Pen(hov ? BorderHi : Border, 1)) g.DrawPath(pen, path);
+            if (hov) { using var rim = new Pen(Color.FromArgb(95, Accent), 1.4f); g.DrawPath(rim, path); }
             // brighter, accent-tinted highlight along the very top edge = "lit from above"
-            using (var hl = new Pen(Color.FromArgb(40, 255, 255, 255), 1)) g.DrawLine(hl, 10, 1, w - 11, 1);
+            using (var hl = new Pen(Color.FromArgb(hov ? 80 : 40, 255, 255, 255), 1)) g.DrawLine(hl, 10, 1, w - 11, 1);
             using (var hl2 = new Pen(Color.FromArgb(60, BorderHi), 1))
             {
                 g.DrawLine(hl2, 3, 6, 3, h - 7);
@@ -284,6 +291,15 @@ public static class Ui
             path.Dispose();
         };
         p.Resize += (s, e) => ((Panel)s).Invalidate();
+        // Hover tracking: MouseMove sets it (fires over the card's own surface); MouseLeave
+        // clears it only once the cursor is truly outside (so moving over child labels keeps it).
+        p.MouseMove += (s, e) => { var pn = (Panel)s; if (hoverCards.Add(pn)) pn.Invalidate(); };
+        p.MouseLeave += (s, e) =>
+        {
+            var pn = (Panel)s;
+            if (!pn.ClientRectangle.Contains(pn.PointToClient(Cursor.Position)))
+                if (hoverCards.Remove(pn)) pn.Invalidate();
+        };
         return p;
     }
 

@@ -682,6 +682,7 @@ public partial class MainForm : Form
             case "dangerBtn": Ui.StyleButton((Button)c, "danger"); return;
             case "logBox": c.BackColor = Ui.LogBg; c.ForeColor = Ui.Text; return;
             case "title": c.BackColor = Ui.Bg; c.ForeColor = Ui.Text; return;           // page title, no box
+            case "section": c.BackColor = Ui.Bg; c.ForeColor = Ui.AccentHover; return;   // dashboard band header
             case "statusbig": c.BackColor = Ui.Bg; return;                              // colour set dynamically
             case "chart": c.BackColor = Ui.Card; c.Invalidate(); return;
         }
