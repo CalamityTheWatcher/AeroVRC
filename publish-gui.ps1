@@ -32,16 +32,21 @@ $Csproj     = Join-Path $ProjectDir 'AeroVRC.csproj'
 function Resolve-DotnetWithSdk {
     $cands = New-Object System.Collections.Generic.List[string]
     if ($env:LOCALAPPDATA) { [void]$cands.Add("$env:LOCALAPPDATA\Microsoft\dotnet-sdk9\dotnet.exe") }
-    # Scan every user profile - covers launches where %LOCALAPPDATA% is empty or points
-    # at a different/elevated profile than the one holding the local no-admin SDK.
-    try {
-        foreach ($u in (Get-ChildItem "$env:SystemDrive\Users" -Directory -ErrorAction SilentlyContinue)) {
-            [void]$cands.Add((Join-Path $u.FullName 'AppData\Local\Microsoft\dotnet-sdk9\dotnet.exe'))
+    # Scan user profiles by LITERAL paths (no env vars): some launchers start us with a
+    # stripped environment (%LOCALAPPDATA%/%SystemDrive% empty), so anything env-based
+    # misses the local no-admin SDK that's really there.
+    $userRoots = @('C:\Users', 'D:\Users', 'E:\Users')
+    if ($env:SystemDrive) { $userRoots += "$env:SystemDrive\Users" }
+    foreach ($root in ($userRoots | Select-Object -Unique)) {
+        if (Test-Path $root) {
+            foreach ($u in (Get-ChildItem $root -Directory -ErrorAction SilentlyContinue)) {
+                [void]$cands.Add((Join-Path $u.FullName 'AppData\Local\Microsoft\dotnet-sdk9\dotnet.exe'))
+            }
         }
-    } catch {}
+    }
     $g = (Get-Command dotnet -ErrorAction SilentlyContinue).Source
     if ($g) { [void]$cands.Add($g) }
-    [void]$cands.Add("$env:ProgramFiles\dotnet\dotnet.exe")
+    foreach ($pf in @($env:ProgramFiles, 'C:\Program Files')) { if ($pf) { [void]$cands.Add((Join-Path $pf 'dotnet\dotnet.exe')) } }
     foreach ($c in ($cands | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique)) {
         $sdkDir = Join-Path (Split-Path $c -Parent) 'sdk'
         if ((Test-Path $sdkDir) -and (Get-ChildItem -LiteralPath $sdkDir -Directory -ErrorAction SilentlyContinue | Select-Object -First 1)) {
@@ -322,8 +327,14 @@ $timer.Add_Tick({
 })
 
 # ---- tool checks ----
+$logBox.AppendText("AeroVRC publish tool - rev 2026-07-08e`r`n")
 if ($dotnet) { $logBox.AppendText("dotnet SDK: $dotnet`r`n") }
-else { $actionButtons | ForEach-Object { $_.Enabled = $false }; $logBox.AppendText("WARNING: no .NET SDK found (looked in %LOCALAPPDATA%\Microsoft\dotnet-sdk9\sdk and PATH) - build/publish disabled.`r`n") }
+else {
+    $actionButtons | ForEach-Object { $_.Enabled = $false }
+    $logBox.AppendText("WARNING: no .NET SDK found - build/publish disabled.`r`n")
+    $logBox.AppendText("  diag: LOCALAPPDATA=[$env:LOCALAPPDATA] SystemDrive=[$env:SystemDrive]`r`n")
+    $logBox.AppendText("  diag: C:\Users exists=$(Test-Path 'C:\Users'); probe exists=$(Test-Path 'C:\Users\ajord\AppData\Local\Microsoft\dotnet-sdk9\dotnet.exe')`r`n")
+}
 if ($gh) { $logBox.AppendText("gh CLI:     $gh`r`n") }
 else { $btnRelease.Enabled = $false; $btnPre.Enabled = $false; $logBox.AppendText("WARNING: gh CLI not found - releases disabled (publish still works).`r`n") }
 

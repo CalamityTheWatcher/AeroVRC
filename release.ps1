@@ -36,16 +36,21 @@ $ScExe      = Join-Path $ProjectDir 'publish\sc\AeroVRC.exe'
 function Resolve-DotnetWithSdk {
     $cands = New-Object System.Collections.Generic.List[string]
     if ($env:LOCALAPPDATA) { [void]$cands.Add("$env:LOCALAPPDATA\Microsoft\dotnet-sdk9\dotnet.exe") }
-    # Scan every user profile - covers launches where %LOCALAPPDATA% is empty or points
-    # at a different/elevated profile than the one holding the local no-admin SDK.
-    try {
-        foreach ($u in (Get-ChildItem "$env:SystemDrive\Users" -Directory -ErrorAction SilentlyContinue)) {
-            [void]$cands.Add((Join-Path $u.FullName 'AppData\Local\Microsoft\dotnet-sdk9\dotnet.exe'))
+    # Scan user profiles by LITERAL paths (no env vars): some launchers start us with a
+    # stripped environment (%LOCALAPPDATA%/%SystemDrive% empty), so anything env-based
+    # misses the local no-admin SDK that's really there.
+    $userRoots = @('C:\Users', 'D:\Users', 'E:\Users')
+    if ($env:SystemDrive) { $userRoots += "$env:SystemDrive\Users" }
+    foreach ($root in ($userRoots | Select-Object -Unique)) {
+        if (Test-Path $root) {
+            foreach ($u in (Get-ChildItem $root -Directory -ErrorAction SilentlyContinue)) {
+                [void]$cands.Add((Join-Path $u.FullName 'AppData\Local\Microsoft\dotnet-sdk9\dotnet.exe'))
+            }
         }
-    } catch {}
+    }
     $g = (Get-Command dotnet -ErrorAction SilentlyContinue).Source
     if ($g) { [void]$cands.Add($g) }
-    [void]$cands.Add("$env:ProgramFiles\dotnet\dotnet.exe")
+    foreach ($pf in @($env:ProgramFiles, 'C:\Program Files')) { if ($pf) { [void]$cands.Add((Join-Path $pf 'dotnet\dotnet.exe')) } }
     foreach ($c in ($cands | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique)) {
         $sdkDir = Join-Path (Split-Path $c -Parent) 'sdk'
         if ((Test-Path $sdkDir) -and (Get-ChildItem -LiteralPath $sdkDir -Directory -ErrorAction SilentlyContinue | Select-Object -First 1)) {
