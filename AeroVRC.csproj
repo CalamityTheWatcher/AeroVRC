@@ -1,5 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
@@ -10,7 +9,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <AssemblyTitle>AeroVRC</AssemblyTitle>
     <Product>AeroVRC</Product>
     <Description>AeroVRC - VRChat companion &amp; watchdog by Calamity</Description>
@@ -18,7 +17,6 @@
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-
     <!-- ===== Memory tuning ===== -->
     <!-- Workstation, non-concurrent GC: a mostly-idle desktop app allocates little,
          so we don't need a background GC heap held in reserve. Lower footprint. -->
@@ -28,13 +26,11 @@
          working set from staying high after a spike, e.g. closing the Photos tab). -->
     <RetainVMGarbageCollection>false</RetainVMGarbageCollection>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- Make the GC more willing to compact and hand memory back (0-9; trades a
          little CPU for a smaller resident heap). -->
     <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" Trim="false" />
   </ItemGroup>
-
   <ItemGroup>
     <!-- Logo.png ships beside the exe: the window/taskbar icon is loaded from it
          at runtime (falls back to the embedded exe icon when absent). -->
@@ -42,5 +38,4 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-
 </Project>
