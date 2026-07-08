@@ -136,7 +136,7 @@ public static class Ui
             FxButtons.Add(btn);
             btn.MouseEnter += (s, e) => { if (ButtonFx.TryGetValue((Button)s, out var f)) f.Target = 1.0; };
             btn.MouseLeave += (s, e) => { if (ButtonFx.TryGetValue((Button)s, out var f)) { f.Target = 0.0; f.Press = false; } ((Button)s).Invalidate(); };
-            btn.MouseDown += (s, e) => { if (ButtonFx.TryGetValue((Button)s, out var f)) f.Press = true; ((Button)s).Invalidate(); };
+            btn.MouseDown += (s, e) => { if (ButtonFx.TryGetValue((Button)s, out var f)) f.Press = true; ((Button)s).Invalidate(); if (e.Button == MouseButtons.Left) AeroSound.PlayClick(); };
             btn.MouseUp += (s, e) => { if (ButtonFx.TryGetValue((Button)s, out var f)) f.Press = false; ((Button)s).Invalidate(); };
             btn.EnabledChanged += (s, e) => ((Button)s).Invalidate();
             btn.Paint += PaintButton;

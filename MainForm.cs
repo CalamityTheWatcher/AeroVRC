@@ -65,6 +65,7 @@ public partial class MainForm : Form
         vrcCacheDir = Path.Combine(vrcLowDir, "Cache-WindowsPlayer");
         config = ConfigStore.Load();
         vdStreamerPath = config.VdStreamerPath;
+        AeroSound.SetupClick(config.ButtonSounds, ConfigStore.ConfigDir);
 
         Text = "AeroVRC";
         // DPI-unaware process (see Program.cs): no WinForms auto-scaling; Windows
@@ -435,7 +436,7 @@ public partial class MainForm : Form
             Cursor = Cursors.Hand,
         };
         b.FlatAppearance.BorderSize = 0;
-        b.Click += (s, e) => ShowPage((string)((Button)s).Tag);
+        b.Click += (s, e) => { AeroSound.PlayClick(); ShowPage((string)((Button)s).Tag); };
         b.Paint += (s, e) => { DrawNavIcon((Button)s, e.Graphics); DrawNavBadge((Button)s, e.Graphics); };
         navButtons.Add(b);
         navList.Controls.Add(b);

@@ -26,7 +26,7 @@ public partial class MainForm
         rejoinRestartCb, autoBmCb, steamvrCb, cacheCb, schedLaunchCb, schedLaunchMonCb,
         bedCb, bedCloseCb, bedAppsCb, bedWindCb, bedMediaCb, schedJoinCb, blockCb,
         blockLeaveCb, watchCb, watchSoundCb, oscCb, discordCb, vrcxCb, sparkleCb,
-        logoAnimCb, welcomeCb, startupSoundCb;
+        logoAnimCb, welcomeCb, startupSoundCb, buttonSoundCb;
     internal TextBox fpsAddrBox, pingHostBox, schedLaunchTimeBox, perfListBox, bedTimeBox,
         bedWindEndBox, bedMediaUrlBox, schedJoinTimeBox, schedJoinTargetBox, schedJoinNameBox,
         blockListBox, watchListBox, oscTplBox, discIdBox, vrcxPathBox;
@@ -720,10 +720,13 @@ public partial class MainForm
         startupSoundCb = NewSettingCheckbox("Play a startup sound", config.StartupSound,
             (s, e) => { if (loading) return; config.StartupSound = startupSoundCb.Checked; SaveConfig(); });
         secApp.Controls.Add(startupSoundCb);
+        buttonSoundCb = NewSettingCheckbox("Play button click sounds", config.ButtonSounds,
+            (s, e) => { if (loading) return; config.ButtonSounds = buttonSoundCb.Checked; SaveConfig(); AeroSound.SetupClick(config.ButtonSounds, ConfigStore.ConfigDir); });
+        secApp.Controls.Add(buttonSoundCb);
         secApp.Controls.Add(new Label
         {
             Name = "onCardMuted", Font = Ui.FontMuted, AutoSize = true,
-            Text = "Startup sound: drop a startup.wav or startup.mp3 in %APPDATA%\\AeroVRC to use your own.",
+            Text = "Custom sounds: drop startup.wav / startup.mp3 / click.wav in %APPDATA%\\AeroVRC.",
         });
         secApp.Controls.Add(new Label
         {

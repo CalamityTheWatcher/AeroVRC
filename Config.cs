@@ -91,6 +91,7 @@ public class AppConfig
     public List<Preset> Presets = new();               // Name; AutoLaunch; Apps
     public bool SoundAlert = true;
     public bool StartupSound = true;
+    public bool ButtonSounds = true;
     public bool AutoCloseCompanions;
     public bool AutoRejoin;
     public bool SteamVRAutoLaunch;
@@ -329,6 +330,7 @@ public static class ConfigStore
             cfg.AmethystPath = SNe(j, "AmethystPath", cfg.AmethystPath);
             cfg.SoundAlert = B(j, "SoundAlert", cfg.SoundAlert);
             cfg.StartupSound = B(j, "StartupSound", cfg.StartupSound);
+            cfg.ButtonSounds = B(j, "ButtonSounds", cfg.ButtonSounds);
             cfg.AutoCloseCompanions = B(j, "AutoCloseCompanions", cfg.AutoCloseCompanions);
             cfg.AutoRejoin = B(j, "AutoRejoin", cfg.AutoRejoin);
             cfg.SteamVRAutoLaunch = B(j, "SteamVRAutoLaunch", cfg.SteamVRAutoLaunch);

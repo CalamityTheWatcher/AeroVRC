@@ -70,6 +70,65 @@ public static class AeroSound
     static SoundPlayer startupPlayer;   // keep a reference alive during async playback
     [DllImport("winmm.dll", CharSet = CharSet.Auto)]
     static extern int mciSendString(string cmd, StringBuilder ret, int retLen, IntPtr hwnd);
+    [DllImport("winmm.dll", SetLastError = true)]
+    static extern bool PlaySound(byte[] data, IntPtr hmod, uint flags);
+    const uint SND_ASYNC = 0x0001, SND_MEMORY = 0x0004, SND_NODEFAULT = 0x0002;
+
+    public static bool ClickEnabled;
+    static byte[] clickWav;      // synthesized default click (built once)
+    static byte[] clickCustom;   // user click.wav bytes, if present
+
+    // Configure button-click sounds: on/off + optional user click.wav override.
+    public static void SetupClick(bool enabled, string configDir)
+    {
+        ClickEnabled = enabled;
+        clickCustom = null;
+        try { var p = Path.Combine(configDir, "click.wav"); if (File.Exists(p)) clickCustom = File.ReadAllBytes(p); }
+        catch { }
+    }
+
+    // Low-latency button-press tick (winmm PlaySound from memory; rapid clicks are fine).
+    public static void PlayClick()
+    {
+        if (!ClickEnabled) return;
+        try
+        {
+            var data = clickCustom ?? (clickWav ??= BuildClickWav());
+            PlaySound(data, IntPtr.Zero, SND_ASYNC | SND_MEMORY | SND_NODEFAULT);
+        }
+        catch { }
+    }
+
+    static byte[] BuildClickWav()
+    {
+        const int sr = 44100;
+        int n = (int)(sr * 0.045);
+        var samp = new short[n];
+        for (int i = 0; i < n; i++)
+        {
+            double t = i / (double)sr;
+            double env = Math.Exp(-t * 90.0);
+            double s = (Math.Sin(2 * Math.PI * 1400 * t) * 0.6 + Math.Sin(2 * Math.PI * 2100 * t) * 0.4) * env * 0.22;
+            if (s > 1) s = 1; else if (s < -1) s = -1;
+            samp[i] = (short)(s * 32767);
+        }
+        return WavFromSamples(samp, sr);
+    }
+
+    static byte[] WavFromSamples(short[] samp, int sr)
+    {
+        using var ms = new MemoryStream();
+        using var bw = new BinaryWriter(ms);
+        int dataLen = samp.Length * 2;
+        bw.Write(Encoding.ASCII.GetBytes("RIFF")); bw.Write(36 + dataLen);
+        bw.Write(Encoding.ASCII.GetBytes("WAVE")); bw.Write(Encoding.ASCII.GetBytes("fmt "));
+        bw.Write(16); bw.Write((short)1); bw.Write((short)1);
+        bw.Write(sr); bw.Write(sr * 2); bw.Write((short)2); bw.Write((short)16);
+        bw.Write(Encoding.ASCII.GetBytes("data")); bw.Write(dataLen);
+        foreach (var v in samp) bw.Write(v);
+        bw.Flush();
+        return ms.ToArray();
+    }
 
     public static void PlayStartup(string dir)
     {
