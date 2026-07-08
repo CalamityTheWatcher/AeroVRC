@@ -590,7 +590,9 @@ public partial class MainForm
 
         UpdateDashboard(proc);
         if (currentPage == "Statistics" && tick % 5 == 0) UpdateStatsPage();
-        if (currentPage == "Settings" && tick % 5 == 0) RefreshOptStatus();
+        // (RefreshOptStatus is no longer polled here - it did an expensive MainModule
+        //  lookup every 5s. It now runs only on VRChat-detection edges and when the
+        //  Settings page is opened, which is all it needs.)
 
         // Persist playtime periodically
         if (tick % 30 == 0) SaveConfig();

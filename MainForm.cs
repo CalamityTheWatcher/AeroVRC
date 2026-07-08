@@ -706,6 +706,9 @@ public partial class MainForm : Form
         // The dashboard is only updated by the tick while it's the visible page, so
         // refresh it immediately on switch rather than waiting up to a second.
         if (name == "Dashboard") { try { UpdateDashboard(lastProc); } catch { } }
+        // Refresh the "detected VRChat.exe" label once when the Settings page opens
+        // (it's also refreshed on the VRChat-detection edge) - not polled on the tick.
+        if (name == "Settings") { try { RefreshOptStatus(); } catch { } }
     }
 
     // ========================================================================
