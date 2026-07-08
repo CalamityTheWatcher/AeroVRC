@@ -112,6 +112,34 @@ try {
             if ($LASTEXITCODE -ne 0) { throw 'gh release create failed.' }
             log "`nDONE: https://github.com/$repo/releases/tag/$tag"
         }
+        'debug' {
+            log "== Building Debug and launching... =="
+            Get-Process AeroVRC -ErrorAction SilentlyContinue | Stop-Process -Force
+            & $dotnet build -c Debug 2>&1 | ForEach-Object { log $_ }
+            if ($LASTEXITCODE -ne 0) { throw 'dotnet build (Debug) failed.' }
+            $dbg = Join-Path $proj 'bin\Debug\net9.0-windows\AeroVRC.exe'
+            log "Launching $dbg ..."
+            Start-Process $dbg
+            log "DONE."
+        }
+        'prerelease' {
+            $ver = $jobArgs.Version
+            if ($ver -notmatch '^\d+\.\d+\.\d+$') { throw "Version must look like 2.1.0 (got '$ver')." }
+            $stamp = Get-Date -Format 'yyyyMMdd-HHmm'
+            $tag = "v$ver-test.$stamp"
+            log "== Cutting PRE-RELEASE $tag (won't replace 'latest') =="
+            Publish-Sc
+            if ($jobArgs.Fd) { Publish-Fd }
+            $asset = "$scExe#AeroVRC.exe (test build, no .NET needed)"
+            $title = "AeroVRC $ver (test $stamp)"
+            if ($jobArgs.Notes) {
+                & $gh release create $tag --repo $repo --title $title --prerelease --notes $jobArgs.Notes $asset 2>&1 | ForEach-Object { log $_ }
+            } else {
+                & $gh release create $tag --repo $repo --title $title --prerelease --generate-notes $asset 2>&1 | ForEach-Object { log $_ }
+            }
+            if ($LASTEXITCODE -ne 0) { throw 'gh release create (prerelease) failed.' }
+            log "`nDONE (pre-release): https://github.com/$repo/releases/tag/$tag"
+        }
     }
 } catch {
     log "`nERROR: $($_.Exception.Message)"
@@ -167,25 +195,37 @@ $chkFd.Location = New-Object System.Drawing.Point(14, 134); $chkFd.Size = New-Ob
 $chkFd.ForeColor = [System.Drawing.Color]::FromArgb(180, 190, 220)
 $form.Controls.Add($chkFd)
 
+# Row 1: build / run
 $btnPublish = New-Object System.Windows.Forms.Button
 $btnPublish.Text = "Publish standalone"; $btnPublish.Location = New-Object System.Drawing.Point(14, 164)
-$btnPublish.Size = New-Object System.Drawing.Size(160, 34); Style-Button $btnPublish $false
+$btnPublish.Size = New-Object System.Drawing.Size(150, 34); Style-Button $btnPublish $false
 $form.Controls.Add($btnPublish)
 
 $btnRun = New-Object System.Windows.Forms.Button
-$btnRun.Text = "Publish && Launch"; $btnRun.Location = New-Object System.Drawing.Point(182, 164)
-$btnRun.Size = New-Object System.Drawing.Size(160, 34); Style-Button $btnRun $false
+$btnRun.Text = "Publish && Launch"; $btnRun.Location = New-Object System.Drawing.Point(170, 164)
+$btnRun.Size = New-Object System.Drawing.Size(150, 34); Style-Button $btnRun $false
 $form.Controls.Add($btnRun)
 
+$btnDebug = New-Object System.Windows.Forms.Button
+$btnDebug.Text = "Build Debug && Run"; $btnDebug.Location = New-Object System.Drawing.Point(326, 164)
+$btnDebug.Size = New-Object System.Drawing.Size(150, 34); Style-Button $btnDebug $false
+$form.Controls.Add($btnDebug)
+
+# Row 2: releases
 $btnRelease = New-Object System.Windows.Forms.Button
-$btnRelease.Text = "Cut GitHub Release"; $btnRelease.Location = New-Object System.Drawing.Point(350, 164)
+$btnRelease.Text = "Cut GitHub Release"; $btnRelease.Location = New-Object System.Drawing.Point(14, 206)
 $btnRelease.Size = New-Object System.Drawing.Size(180, 34); Style-Button $btnRelease $true
 $form.Controls.Add($btnRelease)
 
+$btnPre = New-Object System.Windows.Forms.Button
+$btnPre.Text = "Cut Pre-release (test)"; $btnPre.Location = New-Object System.Drawing.Point(200, 206)
+$btnPre.Size = New-Object System.Drawing.Size(180, 34); Style-Button $btnPre $false
+$form.Controls.Add($btnPre)
+
 $logBox = New-Object System.Windows.Forms.TextBox
 $logBox.Multiline = $true; $logBox.ReadOnly = $true; $logBox.ScrollBars = 'Vertical'
-$logBox.Location = New-Object System.Drawing.Point(14, 210)
-$logBox.Size = New-Object System.Drawing.Size(618, 268); $logBox.Anchor = 'Top,Bottom,Left,Right'
+$logBox.Location = New-Object System.Drawing.Point(14, 250)
+$logBox.Size = New-Object System.Drawing.Size(618, 228); $logBox.Anchor = 'Top,Bottom,Left,Right'
 $logBox.BackColor = [System.Drawing.Color]::FromArgb(12, 14, 30); $logBox.ForeColor = [System.Drawing.Color]::FromArgb(210, 220, 240)
 $logBox.Font = New-Object System.Drawing.Font("Consolas", 9); $logBox.BorderStyle = 'FixedSingle'
 $form.Controls.Add($logBox)
@@ -198,7 +238,7 @@ $form.Controls.Add($status)
 
 # ---- background job plumbing ----
 $script:job = $null
-$actionButtons = @($btnPublish, $btnRun, $btnRelease)
+$actionButtons = @($btnPublish, $btnRun, $btnDebug, $btnRelease, $btnPre)
 
 function Start-Worker([hashtable]$jobArgs) {
     if ($script:job) { return }
@@ -225,6 +265,17 @@ $btnRelease.Add_Click({
     if ($ok -ne 'Yes') { return }
     Start-Worker @{ Op = 'release'; Version = $ver; Notes = $txtNotes.Text.Trim(); Fd = $chkFd.Checked }
 })
+$btnDebug.Add_Click({ Start-Worker @{ Op = 'debug' } })
+$btnPre.Add_Click({
+    $ver = $txtVer.Text.Trim()
+    if ($ver -notmatch '^\d+\.\d+\.\d+$') {
+        [System.Windows.Forms.MessageBox]::Show("Version must look like 2.1.0", "Invalid version", 'OK', 'Warning') | Out-Null
+        return
+    }
+    $ok = [System.Windows.Forms.MessageBox]::Show("Push a TEST pre-release based on v$ver? It shows under Releases but will NOT replace the 'latest' download.", "Confirm pre-release", 'YesNo', 'Question')
+    if ($ok -ne 'Yes') { return }
+    Start-Worker @{ Op = 'prerelease'; Version = $ver; Notes = $txtNotes.Text.Trim(); Fd = $chkFd.Checked }
+})
 
 # ---- pump: drain the log queue and re-enable buttons when the job finishes ----
 $timer = New-Object System.Windows.Forms.Timer
@@ -240,8 +291,8 @@ $timer.Add_Tick({
 })
 
 # ---- tool checks ----
-if (-not $dotnet) { $btnPublish.Enabled = $btnRun.Enabled = $btnRelease.Enabled = $false; $logBox.AppendText("WARNING: .NET SDK not found - build/publish disabled.`r`n") }
-if (-not $gh)     { $btnRelease.Enabled = $false; $logBox.AppendText("WARNING: gh CLI not found - release disabled (publish still works).`r`n") }
+if (-not $dotnet) { $actionButtons | ForEach-Object { $_.Enabled = $false }; $logBox.AppendText("WARNING: .NET SDK not found - build/publish disabled.`r`n") }
+if (-not $gh)     { $btnRelease.Enabled = $false; $btnPre.Enabled = $false; $logBox.AppendText("WARNING: gh CLI not found - releases disabled (publish still works).`r`n") }
 
 if ($SelfTest) { Write-Host "publish-gui.ps1: form built OK ($($form.Controls.Count) controls)"; $form.Dispose(); return }
 
