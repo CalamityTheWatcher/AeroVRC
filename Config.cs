@@ -137,7 +137,7 @@ public class AppConfig
     public Dictionary<string, int> CrashCauses = new();
     public Dictionary<string, int> AvatarUsage = new();
     public ScheduledLaunchCfg ScheduledLaunch = new();
-    public Dictionary<string, double> PlayHistory = new();           // yyyy-MM-dd -> minutes played
+    public Dictionary<string, double> PlayHistory = new();           // yyyy-MM-dd -> seconds played
     public Dictionary<string, int> PlayerSeen = new();
     public List<Bookmark> Bookmarks = new();
     public List<SessionRec> Sessions = new();

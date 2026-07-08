@@ -290,6 +290,28 @@ public partial class MainForm
         dashSteamVR = AddStatCard("SteamVR", 1, 10, '◈', Ui.Accent2);
         dashMic     = AddStatCard("Microphone", 2, 10, '◉', Ui.Success);
 
+        // Right-click the "Played today" card to correct an inaccurate total.
+        var todayCard = dashToday.Parent;
+        if (todayCard != null)
+        {
+            var tm = new ContextMenuStrip { BackColor = Ui.Card, ForeColor = Ui.Text };
+            try { tm.Renderer = new ToolStripProfessionalRenderer(new AeroMenuColors()); } catch { }
+            var mi = new ToolStripMenuItem("Reset today's playtime") { ForeColor = Ui.Text };
+            mi.Click += (s, e) =>
+            {
+                if (MessageBox.Show("Reset today's tracked playtime to zero?", "Reset playtime",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                config.PlayHistory[DateTime.Now.ToString("yyyy-MM-dd")] = 0;
+                SaveConfig();
+                UpdateDashboard(lastProc);
+                UpdateStatsPage();
+                WriteLog("Today's playtime reset to zero.");
+            };
+            tm.Items.Add(mi);
+            todayCard.ContextMenuStrip = tm;
+            foreach (Control c in todayCard.Controls) c.ContextMenuStrip = tm;
+        }
+
         // Who's Here panel: current players with their join times (spans the full row).
         var whoCard = Ui.NewCard();
         whoCard.Margin = new Padding(0, 0, 12, 12);
