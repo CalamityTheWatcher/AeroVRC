@@ -286,17 +286,21 @@ public partial class MainForm
         {
             dashWorldName.Text = currentWorld;
             var itype = GetInstanceType(currentInstanceId);
+            var pcnt = players.Count > 0 ? $"   -   {players.Count} here" : "";
             dashWorldInst.Text = !string.IsNullOrEmpty(currentInstance)
-                ? $"Instance #{currentInstance}" + (itype.Length > 0 ? $"   -   {itype}" : "")
-                : "";
+                ? $"Instance #{currentInstance}" + (itype.Length > 0 ? $"   -   {itype}" : "") + pcnt
+                : (itype.Length > 0 ? itype : "") + pcnt;
+            var newCol = itype.Length > 0 ? GetItypeColor(itype) : Ui.Accent;
+            if (newCol != dashWorldColor) { dashWorldColor = newCol; dashWorldCard?.Invalidate(); }
             var wt = DateTime.Now - worldJoinTime.Value;
             dashInWorld.Text = $"{(int)wt.TotalHours}h {wt.Minutes}m {wt.Seconds}s";
         }
         else
         {
-            dashWorldName.Text = "Not in a world";
-            dashWorldInst.Text = "";
+            dashWorldName.Text = "Not connected";
+            dashWorldInst.Text = "Join a world in VRChat to see it here";
             dashInWorld.Text = "-";
+            if (dashWorldColor != Ui.Border) { dashWorldColor = Ui.Border; dashWorldCard?.Invalidate(); }
         }
         dashPlayers.Text = players.Count.ToString();
         PushSpark("players", players.Count);
@@ -437,6 +441,8 @@ public partial class MainForm
 
         // Repaint sparkline cards so their traces update (only while sparkles are on).
         if (config.Effects.Sparkles) foreach (var c in sparkCards) c.Invalidate();
+        // Goal-ring cards refresh every tick (progress accrues by seconds).
+        foreach (var c in gaugeCards) c.Invalidate();
 
         // Quick toggles + Who's Here refresh.
         qtDesktop.Checked = config.DesktopMode;
@@ -456,6 +462,7 @@ public partial class MainForm
             cooldownLeft = 0;
             crashTimes.Clear();
             toggleButton.Text = "Stop Monitoring";
+            if (monitorBar != null) { monitorBar.Visible = true; monitorBar.BringToFront(); }
             SetStatus("Monitoring", Ui.Accent);
             WriteLog("Monitoring started.");
 
@@ -480,6 +487,7 @@ public partial class MainForm
         {
             monitoring = false;
             toggleButton.Text = "Start Monitoring";
+            if (monitorBar != null) monitorBar.Visible = false;
             if (Process.GetProcessesByName(ProcessName).Length > 0) SetStatus("VRChat running", Ui.Success);
             else SetStatus("Stopped", Ui.Stopped);
             WriteLog("Monitoring stopped.");

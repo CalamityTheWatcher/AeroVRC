@@ -191,6 +191,20 @@ public partial class MainForm
         RebuildBookmarks();
     }
 
+    // Compact relative time ("3d ago"); falls back to the raw string if unparseable.
+    static string RelTime(string s)
+    {
+        if (DateTime.TryParse(s, out var t))
+        {
+            var d = DateTime.Now - t;
+            if (d.TotalDays >= 1) return $"{(int)d.TotalDays}d ago";
+            if (d.TotalHours >= 1) return $"{(int)d.TotalHours}h ago";
+            if (d.TotalMinutes >= 1) return $"{(int)d.TotalMinutes}m ago";
+            return "just now";
+        }
+        return s;
+    }
+
     internal void RebuildBookmarks()
     {
         if (bmList == null) return;
@@ -215,20 +229,32 @@ public partial class MainForm
                 card.Size = new Size(812, 62);
                 card.Margin = new Padding(0, 0, 0, 8);
 
+                // Instance-type colour stripe down the left edge.
+                var itype = GetInstanceType(b.InstanceId);
+                var icol = itype.Length > 0 ? GetItypeColor(itype) : Ui.Border;
+                card.Paint += (s, e) =>
+                {
+                    var g = e.Graphics; g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    using var bar = Ui.RoundedPath(7, 12, 4, ((Panel)s).Height - 24, 2);
+                    using var bb = new SolidBrush(icol);
+                    g.FillPath(bb, bar);
+                };
+
                 var disp = !string.IsNullOrEmpty(b.Name) ? b.Name : b.World;
                 var nm = new Label
                 {
                     Name = "onCard", Font = Ui.FontHeader, AutoSize = true,
-                    Text = (b.Pinned ? "⚑ " : "") + disp,
-                    Location = new Point(14, 10),
-                    MaximumSize = new Size(470, 0),
+                    Text = (b.Pinned ? "★ " : "") + disp,
+                    Location = new Point(20, 10),
+                    MaximumSize = new Size(464, 0),
                 };
                 card.Controls.Add(nm);
 
                 var inst = b.InstanceId.Split(':').Last();
                 // Group instances have huge ids - keep the line clear of the buttons.
                 if (inst.Length > 28) inst = inst[..28] + "...";
-                var subText = $"Instance {inst}   -   saved {b.Added}";
+                var typeTxt = itype.Length > 0 ? $"{itype}   -   " : "";
+                var subText = $"{typeTxt}saved {RelTime(b.Added)}";
                 if (!string.IsNullOrEmpty(b.Note))
                 {
                     var note = b.Note;
@@ -239,8 +265,8 @@ public partial class MainForm
                 {
                     Name = "onCardMuted", Font = Ui.FontMuted, AutoSize = true,
                     Text = subText,
-                    Location = new Point(16, 34),
-                    MaximumSize = new Size(470, 0),
+                    Location = new Point(22, 34),
+                    MaximumSize = new Size(464, 0),
                 };
                 card.Controls.Add(sub);
 
@@ -285,5 +311,6 @@ public partial class MainForm
         }
         bmList.ResumeLayout();
         ThemeWalk(bmList);
+        navButtons.ForEach(b => b.Invalidate());
     }
 }

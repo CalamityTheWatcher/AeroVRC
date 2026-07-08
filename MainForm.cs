@@ -39,6 +39,7 @@ public partial class MainForm : Form
     internal Label navTitle, navSubtitle, navStatusText;
     internal Button toggleButton, panicButton;
     internal Panel content;
+    internal Panel monitorBar;   // animated accent line shown across the top while monitoring
     internal Size contentDesignSize;
     internal Bitmap logoImage;
 
@@ -356,6 +357,20 @@ public partial class MainForm : Form
     {
         if (!navIcons.TryGetValue((string)btn.Tag, out var ch)) return;
         g.SmoothingMode = SmoothingMode.AntiAlias;
+        bool active = (string)btn.Tag == (currentPage == "Presets" ? "Apps" : currentPage);
+        // Soft accent glow behind the active icon.
+        if (active)
+        {
+            float icx = navIconCellX + navIconCellW / 2f, icy = btn.Height / 2f;
+            using var gp = new GraphicsPath();
+            gp.AddEllipse(icx - 16, icy - 16, 32, 32);
+            using var pg = new PathGradientBrush(gp)
+            {
+                CenterColor = Color.FromArgb(85, Ui.Accent),
+                SurroundColors = new[] { Color.FromArgb(0, Ui.Accent) },
+            };
+            g.FillPath(pg, gp);
+        }
         using var path = new GraphicsPath();
         try
         {
@@ -370,11 +385,36 @@ public partial class MainForm : Form
                 using var m = new Matrix();
                 m.Translate(tx, ty); m.Scale(scale, scale);
                 path.Transform(m);
-                using var brush = new SolidBrush(btn.ForeColor);
+                using var brush = new SolidBrush(active ? Ui.AccentHover : btn.ForeColor);
                 g.FillPath(brush, path);
             }
         }
         catch { }
+    }
+
+    // Count badge (Apps / Bookmarks) on the right of a nav button.
+    void DrawNavBadge(Button btn, Graphics g)
+    {
+        int count = (string)btn.Tag switch
+        {
+            "Apps" => config.CustomApps.Count,
+            "Bookmarks" => config.Bookmarks.Count,
+            _ => -1,
+        };
+        if (count <= 0) return;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        string txt = count > 99 ? "99+" : count.ToString();
+        using var f = new Font("Segoe UI Semibold", 8f);
+        var sz = g.MeasureString(txt, f);
+        float bw = Math.Max(20, sz.Width + 10), bh = 18;
+        float bx = btn.Width - bw - 14, by = (btn.Height - bh) / 2f;
+        bool active = (string)btn.Tag == (currentPage == "Presets" ? "Apps" : currentPage);
+        using (var path = Ui.RoundedPath(bx, by, bw, bh, bh / 2f))
+        using (var bb = new SolidBrush(active ? Ui.Accent : Ui.NavActive))
+            g.FillPath(bb, path);
+        using var tb = new SolidBrush(active ? Color.White : Ui.NavText);
+        using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        g.DrawString(txt, f, tb, new RectangleF(bx, by, bw, bh), sf);
     }
 
     internal readonly List<Button> navButtons = new();
@@ -392,7 +432,7 @@ public partial class MainForm : Form
         };
         b.FlatAppearance.BorderSize = 0;
         b.Click += (s, e) => ShowPage((string)((Button)s).Tag);
-        b.Paint += (s, e) => DrawNavIcon((Button)s, e.Graphics);
+        b.Paint += (s, e) => { DrawNavIcon((Button)s, e.Graphics); DrawNavBadge((Button)s, e.Graphics); };
         navButtons.Add(b);
         navList.Controls.Add(b);
         return b;
@@ -487,9 +527,38 @@ public partial class MainForm : Form
         Controls.Add(content);
         content.BringToFront();
 
+        // Live-monitoring accent line across the very top of the content area. Kept at
+        // form level (above content) so it survives page BringToFront; hidden when idle.
+        monitorBar = new Panel
+        {
+            Location = new Point(nav.Width, 0),
+            Size = new Size(Math.Max(10, ClientSize.Width - nav.Width), 3),
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+            Visible = false, BackColor = Ui.Bg,
+        };
+        Ui.SetDoubleBuffered(monitorBar);
+        monitorBar.Paint += (s, e) => DrawMonitorBar((Panel)s, e.Graphics);
+        Controls.Add(monitorBar);
+        monitorBar.BringToFront();
+
         // Design-time content size = form client width minus the nav rail. Pages are
         // pinned to this so anchored children compute correct margins from the start.
         contentDesignSize = new Size(ClientSize.Width - nav.Width, ClientSize.Height);
+    }
+
+    // Animated azure->violet line with a travelling highlight; signals "monitoring".
+    void DrawMonitorBar(Panel p, Graphics g)
+    {
+        int w = p.Width, h = p.Height;
+        if (w < 4) return;
+        using (var lg = new LinearGradientBrush(new Rectangle(0, 0, w, h), Ui.Accent, Ui.Accent2, LinearGradientMode.Horizontal))
+            g.FillRectangle(lg, 0, 0, w, h);
+        // travelling glint
+        float hx = (float)((Environment.TickCount % 2400) / 2400.0 * (w + 120) - 60);
+        using var glow = new LinearGradientBrush(new RectangleF(hx - 60, 0, 120, h), Color.FromArgb(0, 255, 255, 255), Color.FromArgb(150, 255, 255, 255), LinearGradientMode.Horizontal);
+        g.FillRectangle(glow, hx - 60, 0, 60, h);
+        using var glow2 = new LinearGradientBrush(new RectangleF(hx, 0, 120, h), Color.FromArgb(150, 255, 255, 255), Color.FromArgb(0, 255, 255, 255), LinearGradientMode.Horizontal);
+        g.FillRectangle(glow2, hx, 0, 60, h);
     }
 
     // ===== Animated page background (deep navy + drifting sparkles) =====

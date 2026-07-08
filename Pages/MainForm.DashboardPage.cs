@@ -27,10 +27,13 @@ public partial class MainForm
 
     // Dashboard stat-card visuals: per-card icon glyph + colour, and an optional
     // rolling sparkline (drawn only while the sparkle effect is enabled).
-    class DashFx { public char Glyph; public Color IconColor; public string Spark; }
+    class DashFx { public char Glyph; public Color IconColor; public string Spark; public string Gauge; }
     readonly Dictionary<Panel, DashFx> dashFx = new();
     readonly Dictionary<string, List<double>> sparkHist = new();
     readonly List<Panel> sparkCards = new();
+    readonly List<Panel> gaugeCards = new();
+    internal Panel dashWorldCard;
+    internal Color dashWorldColor = Ui.Border;
 
     void BuildDashboardPage()
     {
@@ -80,31 +83,40 @@ public partial class MainForm
         qtPerf.CheckedChanged += (s, e) => { if (loading) return; SetPerformanceMode(qtPerf.Checked); };
         qtPanel.Controls.AddRange(new Control[] { qtDesktop, qtRejoin, qtPerf });
 
-        // Current World indicator (dedicated section)
+        // Current World indicator (hero card): world-icon chip tinted by instance type.
         var worldCard = Ui.NewCard();
         worldCard.Location = new Point(4, 98);
         worldCard.Size = new Size(840, 88);
         worldCard.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         pgDash.Controls.Add(worldCard);
+        dashWorldCard = worldCard;
+        worldCard.Paint += (s, e) =>
+        {
+            var g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var chip = Ui.RoundedPath(16, 20, 48, 48, 12))
+            using (var b = new SolidBrush(Color.FromArgb(40, dashWorldColor)))
+                g.FillPath(b, chip);
+            DrawGlyph(g, '◍', new RectangleF(16, 20, 48, 48), dashWorldColor, 26f);
+        };
 
         var worldCardHdr = new Label
         {
             Name = "onCardMuted", Text = "CURRENT WORLD", Font = Ui.FontSmall,
-            AutoSize = true, Location = new Point(16, 14),
+            AutoSize = true, Location = new Point(74, 14),
         };
         worldCard.Controls.Add(worldCardHdr);
 
         dashWorldName = new Label
         {
             Name = "onCard", Text = "Not in a world", Font = Ui.FontValue,
-            AutoSize = true, Location = new Point(16, 38),
+            AutoSize = true, Location = new Point(74, 36),
         };
         worldCard.Controls.Add(dashWorldName);
 
         dashWorldInst = new Label
         {
             Name = "onCardMuted", Text = "", Font = Ui.FontMuted,
-            AutoSize = true, Location = new Point(18, 64),
+            AutoSize = true, Location = new Point(76, 62),
         };
         worldCard.Controls.Add(dashWorldInst);
 
@@ -199,7 +211,7 @@ public partial class MainForm
         }
 
         // Builds a stat card (icon chip + title + value, optional sparkline).
-        Label AddStatCard(string title, int col, int row, char glyph, Color iconColor, string spark = null)
+        Label AddStatCard(string title, int col, int row, char glyph, Color iconColor, string spark = null, string gauge = null)
         {
             var card = Ui.NewCard();
             card.Margin = new Padding(0, 0, 12, 12);
@@ -220,8 +232,9 @@ public partial class MainForm
             };
             card.Controls.Add(v);
 
-            dashFx[card] = new DashFx { Glyph = glyph, IconColor = iconColor, Spark = spark };
+            dashFx[card] = new DashFx { Glyph = glyph, IconColor = iconColor, Spark = spark, Gauge = gauge };
             if (spark != null) sparkCards.Add(card);
+            if (gauge != null) gaugeCards.Add(card);
             card.Paint += (s, e) => DrawDashCardFx((Panel)s, e.Graphics);
 
             dashGrid.Controls.Add(card, col, row);
@@ -238,7 +251,7 @@ public partial class MainForm
         dashPlayers   = AddStatCard("Players nearby", 2, 1, '☺', cViolet, "players");
         dashRestarts  = AddStatCard("Restarts (session/total)", 0, 2, '⟳', cAmber);
         dashLastCrash = AddStatCard("Last restart", 1, 2, '↺', cPurple);
-        dashToday     = AddStatCard("Played today", 2, 2, '◔', cGreen);
+        dashToday     = AddStatCard("Played today", 2, 2, '◔', cGreen, gauge: "todayGoal");
         dashPhotos    = AddStatCard("Photos this session", 0, 3, '▣', cRose);
         dashAvatars   = AddStatCard("Avatar switches (session)", 1, 3, '❂', cIndigo);
         dashNext      = AddStatCard("Next timer", 2, 3, '⧖', cAmber);
@@ -438,6 +451,26 @@ public partial class MainForm
         if (fx.Spark != null && config.Effects.Sparkles &&
             sparkHist.TryGetValue(fx.Spark, out var hist) && hist.Count >= 2)
             DrawSparkline(g, card, hist, fx.IconColor);
+        if (fx.Gauge == "todayGoal") DrawGoalGauge(g, card);
+    }
+
+    // Radial progress ring on the right of a card: today's playtime vs the daily goal.
+    void DrawGoalGauge(Graphics g, Panel card)
+    {
+        int goalSec = config.Goals.DailyMin * 60;
+        if (goalSec <= 0) return;
+        int todaySec = config.PlayHistory.TryGetValue(DateTime.Now.ToString("yyyy-MM-dd"), out var ts) ? (int)ts : 0;
+        double prog = Math.Min(1.0, todaySec / (double)goalSec);
+        var color = prog >= 1.0 ? Ui.Success : Ui.AccentHover;
+        float d = 46, x = card.Width - 16 - d, y = (card.Height - d) / 2f + 4;
+        var rect = new RectangleF(x, y, d, d);
+        using (var bgp = new Pen(Ui.Border, 5)) g.DrawArc(bgp, rect, 0, 360);
+        using (var fgp = new Pen(color, 5) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            g.DrawArc(fgp, rect, -90, (float)(360 * prog));
+        using var f = new Font("Segoe UI Semibold", 8f);
+        using var tb = new SolidBrush(Ui.Text);
+        using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        g.DrawString($"{(int)(prog * 100)}%", f, tb, rect, sf);
     }
 
     // Draws a Segoe UI Symbol glyph scaled + centred into a cell (same technique as

@@ -32,13 +32,17 @@ public partial class MainForm
         using (var pen = new Pen(Ui.Border, 1))
             g.DrawPath(pen, path);
         var acc = toastState.Accent ?? Ui.Accent;
-        using (var bar = Ui.RoundedPath(10, 14, 4, h - 28, 2))
-        using (var bb = new SolidBrush(acc))
-            g.FillPath(bb, bar);
+        // Type icon chip (glyph inferred from the accent colour).
+        char gg = acc == Ui.Success ? '✓' : acc == Ui.Warning ? '⚠' : acc == Ui.Danger ? '✕' : 'ℹ';
+        var chipR = new RectangleF(12, h / 2f - 15, 30, 30);
+        using (var cp = Ui.RoundedPath(chipR.X, chipR.Y, chipR.Width, chipR.Height, 8))
+        using (var cb = new SolidBrush(Color.FromArgb(48, acc)))
+            g.FillPath(cb, cp);
+        DrawGlyph(g, gg, chipR, acc, 16f);
         using (var tb = new SolidBrush(Ui.Text))
-            g.DrawString(toastState.Title, Ui.FontHeader, tb, new RectangleF(26, 12, w - 34, 22));
+            g.DrawString(toastState.Title, Ui.FontHeader, tb, new RectangleF(52, 12, w - 60, 22));
         using var mb = new SolidBrush(Ui.TextMuted);
-        g.DrawString(toastState.Msg, Ui.FontBody, mb, new RectangleF(26, 36, w - 34, h - 44));
+        g.DrawString(toastState.Msg, Ui.FontBody, mb, new RectangleF(52, 36, w - 60, h - 44));
     }
 
     // Shows (or replaces) the toast with a title + message. Non-blocking; fades
@@ -406,6 +410,9 @@ public partial class MainForm
         fxPhase += 0.035;
         if (fxPhase >= 1.0) fxPhase = 0.0;
         if (monitoring) navStatusDot.Invalidate();
+
+        // animated monitoring accent line
+        if (monitoring && monitorBar != null && monitorBar.Visible) monitorBar.Invalidate();
 
         // animated logo orb - only while focused + enabled (idle when blurred/off)
         if (config.Effects.LogoAnim && ContainsFocus)

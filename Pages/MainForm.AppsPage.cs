@@ -315,6 +315,7 @@ public partial class MainForm
             appsGrid.Controls.Add(empty, 0, 0);
             appsGrid.SetColumnSpan(empty, 6);
             appsGrid.ResumeLayout();
+            navButtons.ForEach(b => b.Invalidate());
             return;
         }
 
@@ -323,6 +324,7 @@ public partial class MainForm
         appsGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         appsGrid.RowCount = appsRowCount + 1;
         appsGrid.ResumeLayout();
+        navButtons.ForEach(b => b.Invalidate());
     }
 
     // ---- Add / Edit app dialog ----
