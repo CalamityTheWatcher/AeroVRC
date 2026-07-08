@@ -473,19 +473,6 @@ public partial class MainForm
             if (navSlider.Top != top) navSlider.Top = top;
         }
 
-        // page crossfade: dissolve the captured old page away to reveal the new one
-        if (xfadeOverlay != null && xfadeOverlay.Visible)
-        {
-            xfadeAlpha -= 0.16;
-            if (xfadeAlpha <= 0)
-            {
-                xfadeAlpha = 0;
-                xfadeOverlay.Visible = false; xfadeOverlay.SendToBack();
-                xfadeBmpOld?.Dispose(); xfadeBmpNew?.Dispose(); xfadeBmpOld = xfadeBmpNew = null;
-            }
-            else xfadeOverlay.Invalidate();
-        }
-
         // window launch fade-in
         if (Opacity < 1.0) Opacity = Math.Min(1.0, Opacity + 0.12);
 
