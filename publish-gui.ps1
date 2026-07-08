@@ -222,6 +222,12 @@ $btnPre.Text = "Cut Pre-release (test)"; $btnPre.Location = New-Object System.Dr
 $btnPre.Size = New-Object System.Drawing.Size(180, 34); Style-Button $btnPre $false
 $form.Controls.Add($btnPre)
 
+$btnReleases = New-Object System.Windows.Forms.Button
+$btnReleases.Text = "Open Releases page"; $btnReleases.Location = New-Object System.Drawing.Point(390, 206)
+$btnReleases.Size = New-Object System.Drawing.Size(160, 34); Style-Button $btnReleases $false
+$btnReleases.Anchor = 'Top,Right'
+$form.Controls.Add($btnReleases)
+
 $logBox = New-Object System.Windows.Forms.TextBox
 $logBox.Multiline = $true; $logBox.ReadOnly = $true; $logBox.ScrollBars = 'Vertical'
 $logBox.Location = New-Object System.Drawing.Point(14, 250)
@@ -276,6 +282,7 @@ $btnPre.Add_Click({
     if ($ok -ne 'Yes') { return }
     Start-Worker @{ Op = 'prerelease'; Version = $ver; Notes = $txtNotes.Text.Trim(); Fd = $chkFd.Checked }
 })
+$btnReleases.Add_Click({ Start-Process "https://github.com/$($sync.Repo)/releases" })
 
 # ---- pump: drain the log queue and re-enable buttons when the job finishes ----
 $timer = New-Object System.Windows.Forms.Timer
