@@ -34,16 +34,22 @@ $ScExe      = Join-Path $ProjectDir 'publish\sc\AeroVRC.exe'
 # Detect via the filesystem (an "sdk\<version>" folder next to dotnet.exe) instead
 # of spawning "dotnet --list-sdks", which can report empty in some launch contexts.
 function Resolve-DotnetWithSdk {
-    $cands = @(
-        "$env:LOCALAPPDATA\Microsoft\dotnet-sdk9\dotnet.exe",
-        (Get-Command dotnet -ErrorAction SilentlyContinue).Source,
-        "$env:ProgramFiles\dotnet\dotnet.exe"
-    ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
-    foreach ($c in $cands) {
+    $cands = New-Object System.Collections.Generic.List[string]
+    if ($env:LOCALAPPDATA) { [void]$cands.Add("$env:LOCALAPPDATA\Microsoft\dotnet-sdk9\dotnet.exe") }
+    # Scan every user profile - covers launches where %LOCALAPPDATA% is empty or points
+    # at a different/elevated profile than the one holding the local no-admin SDK.
+    try {
+        foreach ($u in (Get-ChildItem "$env:SystemDrive\Users" -Directory -ErrorAction SilentlyContinue)) {
+            [void]$cands.Add((Join-Path $u.FullName 'AppData\Local\Microsoft\dotnet-sdk9\dotnet.exe'))
+        }
+    } catch {}
+    $g = (Get-Command dotnet -ErrorAction SilentlyContinue).Source
+    if ($g) { [void]$cands.Add($g) }
+    [void]$cands.Add("$env:ProgramFiles\dotnet\dotnet.exe")
+    foreach ($c in ($cands | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique)) {
         $sdkDir = Join-Path (Split-Path $c -Parent) 'sdk'
-        if (Test-Path $sdkDir) {
-            $hasVer = Get-ChildItem -LiteralPath $sdkDir -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($hasVer) { return $c }
+        if ((Test-Path $sdkDir) -and (Get-ChildItem -LiteralPath $sdkDir -Directory -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+            return $c
         }
     }
     return $null
