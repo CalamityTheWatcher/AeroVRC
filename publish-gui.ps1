@@ -327,13 +327,16 @@ $timer.Add_Tick({
 })
 
 # ---- tool checks ----
-$logBox.AppendText("AeroVRC publish tool - rev 2026-07-08e`r`n")
+$logBox.AppendText("AeroVRC publish tool - rev 2026-07-08f`r`n")
 if ($dotnet) { $logBox.AppendText("dotnet SDK: $dotnet`r`n") }
 else {
     $actionButtons | ForEach-Object { $_.Enabled = $false }
     $logBox.AppendText("WARNING: no .NET SDK found - build/publish disabled.`r`n")
-    $logBox.AppendText("  diag: LOCALAPPDATA=[$env:LOCALAPPDATA] SystemDrive=[$env:SystemDrive]`r`n")
-    $logBox.AppendText("  diag: C:\Users exists=$(Test-Path 'C:\Users'); probe exists=$(Test-Path 'C:\Users\ajord\AppData\Local\Microsoft\dotnet-sdk9\dotnet.exe')`r`n")
+    try { $who = [System.Security.Principal.WindowsIdentity]::GetCurrent(); $elev = (New-Object System.Security.Principal.WindowsPrincipal($who)).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator) } catch { $who = $null; $elev = '?' }
+    $logBox.AppendText("  diag: user=$($who.Name) elevated=$elev 64bit=$([Environment]::Is64BitProcess)`r`n")
+    $mp = 'C:\Users\ajord\AppData\Local\Microsoft'
+    $logBox.AppendText("  diag: Microsoft dir=$(Test-Path $mp); dotnet-sdk9=$(Test-Path (Join-Path $mp 'dotnet-sdk9')); exe=$(Test-Path (Join-Path $mp 'dotnet-sdk9\dotnet.exe'))`r`n")
+    try { $names = (Get-ChildItem $mp -Directory -ErrorAction Stop | Select-Object -Expand Name) -join ', '; $logBox.AppendText("  diag: under Microsoft: $names`r`n") } catch { $logBox.AppendText("  diag: cannot list Microsoft: $($_.Exception.Message)`r`n") }
 }
 if ($gh) { $logBox.AppendText("gh CLI:     $gh`r`n") }
 else { $btnRelease.Enabled = $false; $btnPre.Enabled = $false; $logBox.AppendText("WARNING: gh CLI not found - releases disabled (publish still works).`r`n") }
