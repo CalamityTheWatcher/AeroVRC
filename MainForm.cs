@@ -456,8 +456,11 @@ public partial class MainForm : Form
                 b.Font = Ui.FontNavActive;
                 // glide the accent bar to this entry (animated by the fx timer), clamped
                 // to the rail so a scrolled list never parks it over the header/footer
-                int target = navList.Top + b.Top + (b.Height - navSlider.Height) / 2;
-                int lo = navList.Top, hi = navList.Top + navList.Height - navSlider.Height;
+                // Centre using the slider's RESTING height (26), not its live height -
+                // it stretches while moving, and the fx spring offsets Top for that.
+                const int baseH = 26;
+                int target = navList.Top + b.Top + (b.Height - baseH) / 2;
+                int lo = navList.Top, hi = navList.Top + navList.Height - baseH;
                 navSliderTarget = Math.Max(lo, Math.Min(hi, target));
                 navSlider.BackColor = Ui.Accent;
                 if (!navSlider.Visible) { navSliderPos = navSliderTarget; navSliderVel = 0; navSlider.Top = navSliderTarget; navSlider.Visible = true; }
