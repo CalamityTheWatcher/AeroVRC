@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -65,6 +66,49 @@ public static class Ui
         p.CloseFigure();
         return p;
     }
+    // Builds a proper multi-size, alpha-preserving Icon from a bitmap. Bitmap.GetHicon()
+    // loses transparency and paints a white box behind the icon at small (taskbar) sizes,
+    // so we assemble a real PNG-framed ICO in memory instead.
+    public static Icon CreateIcon(Bitmap src)
+    {
+        int[] sizes = { 16, 24, 32, 48, 64, 128, 256 };
+        var frames = new List<byte[]>();
+        foreach (var s in sizes)
+        {
+            using var bmp = new Bitmap(s, s, PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                g.Clear(Color.Transparent);
+                g.DrawImage(src, new Rectangle(0, 0, s, s));
+            }
+            using var pngMs = new MemoryStream();
+            bmp.Save(pngMs, ImageFormat.Png);
+            frames.Add(pngMs.ToArray());
+        }
+        using var ms = new MemoryStream();
+        using (var bw = new BinaryWriter(ms, System.Text.Encoding.UTF8, true))
+        {
+            bw.Write((short)0); bw.Write((short)1); bw.Write((short)sizes.Length);   // ICONDIR
+            int offset = 6 + 16 * sizes.Length;
+            for (int i = 0; i < sizes.Length; i++)
+            {
+                int s = sizes[i];
+                bw.Write((byte)(s >= 256 ? 0 : s));   // width  (0 => 256)
+                bw.Write((byte)(s >= 256 ? 0 : s));   // height
+                bw.Write((byte)0); bw.Write((byte)0); // palette, reserved
+                bw.Write((short)1); bw.Write((short)32); // planes, bpp
+                bw.Write(frames[i].Length); bw.Write(offset);
+                offset += frames[i].Length;
+            }
+            foreach (var f in frames) bw.Write(f);
+        }
+        ms.Position = 0;
+        return new Icon(ms);
+    }
+
     public static Color Blend(Color a, Color b, double t) => Color.FromArgb(
         (int)(a.R + (b.R - a.R) * t),
         (int)(a.G + (b.G - a.G) * t),

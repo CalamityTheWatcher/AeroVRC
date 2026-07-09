@@ -32,10 +32,11 @@
     <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" Trim="false" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Logo.png ships beside the exe: the window/taskbar icon is loaded from it
-         at runtime (falls back to the embedded exe icon when absent). -->
-    <None Update="Logo.png">
+    <!-- Logo.png is embedded in the exe (so a standalone single-file build still has
+         the orb icon) AND copied beside the exe so users can swap it. -->
+    <None Remove="Logo.png" />
+    <EmbeddedResource Include="Logo.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>

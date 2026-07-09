@@ -79,21 +79,24 @@ public partial class MainForm : Form
 
         Shown += (s, e) => Ui.SetDarkTitleBar(this);
 
-        // Window / taskbar icon: prefer Logo.png (the "A" orb) next to the exe,
-        // falling back to Logo.jpg, then to the embedded exe icon.
-        var baseDir = AppContext.BaseDirectory;
-        var logoPath = Path.Combine(baseDir, "Logo.png");
-        if (!File.Exists(logoPath)) logoPath = Path.Combine(baseDir, "Logo.jpg");
-        if (File.Exists(logoPath))
+        // Window / taskbar icon: the "A" orb. Prefer a Logo.png next to the exe (lets
+        // users swap it), else the copy embedded in the assembly (so a standalone exe
+        // still shows the orb). Built as a proper multi-size icon so transparency
+        // survives - Bitmap.GetHicon() paints a white box behind it at small sizes.
+        try
         {
-            try
+            Bitmap src = null;
+            var pngPath = Path.Combine(AppContext.BaseDirectory, "Logo.png");
+            if (File.Exists(pngPath)) { using var raw = Image.FromFile(pngPath); src = new Bitmap(raw); }
+            else
             {
-                using var rawImg = Image.FromFile(logoPath);
-                logoImage = new Bitmap(rawImg);
-                Icon = Icon.FromHandle(logoImage.GetHicon());
+                var asm = System.Reflection.Assembly.GetExecutingAssembly();
+                var resName = asm.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith("Logo.png"));
+                if (resName != null) { using var st = asm.GetManifestResourceStream(resName); if (st != null) src = new Bitmap(st); }
             }
-            catch { logoImage = null; }
+            if (src != null) { logoImage = src; Icon = Ui.CreateIcon(src); }
         }
+        catch { logoImage = null; }
 
         BuildNavRail();
         BuildContentHost();
