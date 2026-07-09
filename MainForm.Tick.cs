@@ -16,7 +16,7 @@ public partial class MainForm
     {
         timer = new System.Windows.Forms.Timer { Interval = 1000 };
         timer.Tick += (s, e) => MainTick();
-        fxTimer = new System.Windows.Forms.Timer { Interval = 33 };
+        fxTimer = new System.Windows.Forms.Timer { Interval = 16 };   // ~60 fps (delta-time scaled)
         fxTimer.Tick += (s, e) => FxTick();
     }
 

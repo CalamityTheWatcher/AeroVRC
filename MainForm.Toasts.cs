@@ -397,50 +397,61 @@ public partial class MainForm
     }
 
     // ========================================================================
-    //  FX TIMER  (~30fps; drives hover fades, nav slider glide, status pulse)
+    //  FX TIMER  (~60fps; drives hover fades, nav slider glide, status pulse).
+    //  Delta-time scaled (dt: 1.0 == one old 33ms frame) so animation speed is
+    //  identical at any frame rate; fully paused when minimized or unfocused.
     // ========================================================================
     bool fxSparkGate;
+    long fxLast;
     void FxTick()
     {
-        // Nothing is visible while minimized, so skip all animation - repainting an
-        // off-screen window still makes DWM recomposite it and burns GPU.
-        if (WindowState == FormWindowState.Minimized) return;
+        long now = Environment.TickCount64;
+        double dt = fxLast == 0 ? 1.0 : Math.Min(4.0, (now - fxLast) / 33.0);
+        fxLast = now;
+
+        // Window launch fade-in - runs regardless of focus so the window can never get
+        // stuck transparent when it's launched in the background.
+        if (Opacity < 1.0) Opacity = Math.Min(1.0, Opacity + 0.12 * dt);
+
+        // Pause the ongoing animations in the background: minimized, or no AeroVRC window
+        // is the foreground app (ActiveForm stays non-null while our toasts/dialogs are up).
+        if (WindowState == FormWindowState.Minimized || Form.ActiveForm == null) return;
 
         // status dot pulse (only animates while monitoring)
-        fxPhase += 0.035;
-        if (fxPhase >= 1.0) fxPhase = 0.0;
+        fxPhase += 0.035 * dt;
+        if (fxPhase >= 1.0) fxPhase -= 1.0;
         if (monitoring) navStatusDot.Invalidate();
 
         // animated monitoring accent line
         if (monitoring && monitorBar != null && monitorBar.Visible) monitorBar.Invalidate();
 
-        // animated logo orb - only while focused + enabled (idle when blurred/off)
-        if (config.Effects.LogoAnim && ContainsFocus)
+        // animated logo orb
+        if (config.Effects.LogoAnim)
         {
-            logoPhase += 0.06;
+            logoPhase += 0.06 * dt;
             if (logoPhase > 6.283) logoPhase -= 6.283;
             navLogo.Invalidate();
         }
 
-        // photo-tile hover eases (only the tiles currently entering/leaving)
+        // photo-tile hover eases (dt-correct exponential approach)
         if (photoActive.Count > 0)
         {
+            double f = 1 - Math.Pow(0.75, dt);   // 0.25 per old frame
             var done = new List<Panel>();
             foreach (var t in photoActive)
             {
                 if (t.IsDisposed) { done.Add(t); continue; }
                 var d0 = (PhotoTileData)t.Tag;
                 double d = d0.HoverT - d0.Hover;
-                if (Math.Abs(d) <= 0.03) { d0.Hover = d0.HoverT; done.Add(t); t.Invalidate(); }
-                else { d0.Hover += d * 0.25; t.Invalidate(); }
+                if (Math.Abs(d) <= 0.01) { d0.Hover = d0.HoverT; done.Add(t); t.Invalidate(); }
+                else { d0.Hover += d * f; t.Invalidate(); }
             }
             foreach (var t in done) photoActive.Remove(t);
         }
 
-        // Animated page sparkles - advance the drifting dots, repaint the visible
-        // page only. Only animate while the window is focused; the full-page
-        // repaint is throttled to every other tick (~15 FPS).
-        if (config.Effects.Sparkles && ContainsFocus)
+        // Animated page sparkles - advance by dt; the full-page repaint (the expensive
+        // part) is gated to ~half the tick rate (~30 FPS).
+        if (config.Effects.Sparkles)
         {
             if (pages.TryGetValue(currentPage, out var pg) && pg.Visible && pg.Height > 0)
             {
@@ -448,8 +459,8 @@ public partial class MainForm
                 bool down = sparkStyle != null && sparkStyle.Down;
                 foreach (var p in pageParticles)
                 {
-                    if (down) p.Y += p.VY; else p.Y -= p.VY;
-                    p.X += p.VX;
+                    if (down) p.Y += p.VY * dt; else p.Y -= p.VY * dt;
+                    p.X += p.VX * dt;
                     if (down) { if (p.Y > ph + 4) { p.Y = -4; p.X = sparkRnd.Next(0, pw); } }
                     else { if (p.Y < -4) { p.Y = ph + 4; p.X = sparkRnd.Next(0, pw); } }
                     if (p.X < -6) p.X = pw + 2;
@@ -460,12 +471,13 @@ public partial class MainForm
             }
         }
 
-        // nav slider glide - damped spring (slight overshoot) + stretch while moving
+        // nav slider glide - damped spring (dt-correct; identical at dt=1)
         if (navSlider.Visible)
         {
             double diff = navSliderTarget - navSliderPos;
-            navSliderVel = (navSliderVel + diff * 0.30) * 0.70;
-            navSliderPos += (float)navSliderVel;
+            navSliderVel += diff * 0.30 * dt;
+            navSliderVel *= Math.Pow(0.70, dt);
+            navSliderPos += (float)(navSliderVel * dt);
             if (Math.Abs(diff) < 0.4 && Math.Abs(navSliderVel) < 0.4) { navSliderPos = navSliderTarget; navSliderVel = 0; }
             int stretch = (int)Math.Min(18, Math.Abs(navSliderVel) * 1.7);
             int h = 26 + stretch, top = (int)Math.Round(navSliderPos - stretch / 2.0);
@@ -473,10 +485,7 @@ public partial class MainForm
             if (navSlider.Top != top) navSlider.Top = top;
         }
 
-        // window launch fade-in
-        if (Opacity < 1.0) Opacity = Math.Min(1.0, Opacity + 0.12);
-
         // button hover fades
-        Ui.TickButtonFx();
+        Ui.TickButtonFx(dt);
     }
 }

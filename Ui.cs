@@ -239,8 +239,9 @@ public static class Ui
     }
 
     // Advances all hover animations one frame; called by the shared fx timer.
-    public static void TickButtonFx()
+    public static void TickButtonFx(double dt = 1.0)
     {
+        double f = 1 - Math.Pow(0.72, dt);   // 0.28 per old 33ms frame, dt-scaled
         List<Button> dead = null;
         foreach (var b in FxButtons)
         {
@@ -249,7 +250,7 @@ public static class Ui
             double diff = st.Target - st.Hover;
             if (Math.Abs(diff) > 0.02)
             {
-                st.Hover += diff * 0.28;
+                st.Hover += diff * f;
                 b.Invalidate();
             }
             else if (st.Hover != st.Target)

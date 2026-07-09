@@ -177,6 +177,7 @@ public partial class MainForm : Form
         }
         else if (lastWinState == FormWindowState.Minimized)
         {
+            fxLast = 0;   // reset the delta-time baseline so the first frame doesn't jump
             if (!fxTimer.Enabled) fxTimer.Start();
             // Repopulate the photo grid if it was freed while minimized.
             if (currentPage == "Photos" && photosLoaded && photoGrid.Controls.Count == 0 && photoAll.Count > 0)
