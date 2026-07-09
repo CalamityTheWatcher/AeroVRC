@@ -246,7 +246,9 @@ public partial class MainForm
         try
         {
             var p = Process.GetProcessesByName(ProcessName).FirstOrDefault();
-            return p?.MainModule?.FileName;
+            // ProcPath (QueryFullProcessImageName) is fast and works even when VRChat is
+            // elevated - unlike proc.MainModule, which enumerates modules and stalls ~1s.
+            return p != null ? ProcPath.Get(p.Id) : null;
         }
         catch { }
         return null;

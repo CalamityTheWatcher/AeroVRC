@@ -194,6 +194,35 @@ public static class AeroSound
     }
 }
 
+// Fast, cross-integrity way to get another process's exe path. Process.MainModule
+// enumerates ALL of the target's modules (slow for a big process like VRChat, and it
+// fails slowly when the target is elevated); QueryFullProcessImageName reads just the
+// path and works with PROCESS_QUERY_LIMITED_INFORMATION (granted across integrity levels).
+public static class ProcPath
+{
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern IntPtr OpenProcess(int access, bool inherit, int pid);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool CloseHandle(IntPtr h);
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern bool QueryFullProcessImageName(IntPtr h, int flags, StringBuilder buf, ref int size);
+    const int PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+
+    public static string Get(int pid)
+    {
+        var h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        if (h == IntPtr.Zero) return null;
+        try
+        {
+            var sb = new StringBuilder(1024);
+            int sz = sb.Capacity;
+            return QueryFullProcessImageName(h, 0, sb, ref sz) ? sb.ToString() : null;
+        }
+        catch { return null; }
+        finally { CloseHandle(h); }
+    }
+}
+
 public static class MicCtl
 {
     static IAudioEndpointVolume GetVol()
