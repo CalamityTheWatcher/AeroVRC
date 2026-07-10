@@ -3,13 +3,20 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- WPF is referenced ONLY for its WIC imaging stack (System.Windows.Media.Imaging):
+         photo thumbnails decode straight to target size without ever materializing the
+         full-resolution frame (an 8K PNG would be ~130 MB). The WPF assemblies are part
+         of the Windows Desktop runtime the publish already ships, so this costs nothing.
+         Its implicit usings are removed below so WinForms names (Application, MessageBox,
+         Color, ...) stay unambiguous everywhere. -->
+    <UseWPF>true</UseWPF>
     <AssemblyName>AeroVRC</AssemblyName>
     <RootNamespace>AeroVRC</RootNamespace>
     <ApplicationIcon>Logo.ico</ApplicationIcon>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>
-    <Version>2.1.9</Version>
+    <Version>2.2.0</Version>
     <AssemblyTitle>AeroVRC</AssemblyTitle>
     <Product>AeroVRC</Product>
     <Description>AeroVRC - VRChat companion &amp; watchdog by Calamity</Description>
@@ -30,6 +37,26 @@
     <!-- Make the GC more willing to compact and hand memory back (0-9; trades a
          little CPU for a smaller resident heap). -->
     <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" Trim="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- UseWPF would add these implicit usings, which collide with the WinForms ones
+         (Application, MessageBox, Clipboard, Color, Brushes...). WPF types are always
+         fully qualified in code instead. -->
+    <!-- The WPF SDK drops System.IO and System.Net.Http from the implicit usings (its
+         Shapes.Path would collide); Shapes is removed here, so put them back. It also
+         adds Microsoft.Win32, which makes SaveFileDialog ambiguous with WinForms. -->
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
+    <Using Remove="Microsoft.Win32" />
+    <Using Remove="System.Windows" />
+    <Using Remove="System.Windows.Controls" />
+    <Using Remove="System.Windows.Data" />
+    <Using Remove="System.Windows.Documents" />
+    <Using Remove="System.Windows.Input" />
+    <Using Remove="System.Windows.Media" />
+    <Using Remove="System.Windows.Media.Imaging" />
+    <Using Remove="System.Windows.Navigation" />
+    <Using Remove="System.Windows.Shapes" />
   </ItemGroup>
   <ItemGroup>
     <!-- Logo.png is embedded in the exe (so a standalone single-file build still has
