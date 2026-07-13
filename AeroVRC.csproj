@@ -16,7 +16,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>
-    <Version>2.2.5</Version>
+    <Version>2.3.0</Version>
     <AssemblyTitle>AeroVRC</AssemblyTitle>
     <Product>AeroVRC</Product>
     <Description>AeroVRC - VRChat companion &amp; watchdog by Calamity</Description>
