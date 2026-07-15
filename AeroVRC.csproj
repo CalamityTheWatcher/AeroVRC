@@ -20,7 +20,7 @@
          2.3.7 < 2.3.65 < 2.3.67 < 2.3.70 < 2.3.71. Never shorten the patch
          digits mid-series (the v2.3.67 -> v2.3.7 release read as a DOWNGRADE
          and broke the auto-updater). Release tags must match this number. -->
-    <Version>2.4.0</Version>
+    <Version>2.4.1</Version>
     <AssemblyTitle>AeroVRC</AssemblyTitle>
     <Product>AeroVRC</Product>
     <Description>AeroVRC - VRChat companion &amp; watchdog by Calamity</Description>
@@ -69,5 +69,8 @@
     <EmbeddedResource Include="Logo.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </EmbeddedResource>
+    <!-- Easter egg image (embedded only; not copied beside the exe). -->
+    <None Remove="Assets\huzz.png" />
+    <EmbeddedResource Include="Assets\huzz.png" />
   </ItemGroup>
 </Project>
